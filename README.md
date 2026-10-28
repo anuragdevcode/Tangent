@@ -299,7 +299,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
 | Compatibility suite (`--test`) | `PASS — 163 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 05b82d4ddf820697a1e836074b246eb8750ef0e9593bd40043583b0c7c6d314d`, arm64 |
+| Binary | `sha256 db330ac92988c8f7c2d7caa6e2ec81b243e42821af6acc4c79cf151c2e471f74`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `980×680` window at layer `0`, plus the wallpaper window |
