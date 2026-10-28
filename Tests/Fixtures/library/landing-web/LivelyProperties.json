@@ -1,0 +1,11 @@
+{
+  "speed":     { "type": "slider",         "text": "Speed",        "value": 1.5, "min": 0, "max": 5, "step": 0.1 },
+  "caption":   { "type": "textbox",        "text": "Caption",      "value": "Hello" },
+  "mode":      { "type": "dropdown",       "text": "Mode",         "value": 1, "items": ["One", "Two", "Three"] },
+  "image":     { "type": "folderDropdown", "text": "Image",        "filter": "*.jpg|*.png", "folder": "images", "value": "present.jpg" },
+  "missingImage": { "type": "folderDropdown", "text": "Missing",   "filter": "*.jpg", "folder": "images", "value": "absent.jpg" },
+  "apply":     { "type": "button",         "text": "Apply",        "value": "Go" },
+  "note":      { "type": "label",          "text": "Just a label" },
+  "tint":      { "type": "color",          "text": "Tint",         "value": "#112233" },
+  "flip":      { "type": "checkbox",       "text": "Flip",         "value": true }
+}

@@ -1,0 +1,17 @@
+{
+  "AppVersion": "2.1.0.0",
+  "Title": "Aurora Drift",
+  "Thumbnail": "thumb.jpg",
+  "Preview": "preview.mp4",
+  "Desc": "Slow aurora ribbons over a night sky.",
+  "Author": "Studio Nord",
+  "License": "CC-BY-4.0",
+  "Contact": "https://example.com",
+  "Type": "video",
+  "FileName": "aurora.mp4",
+  "Arguments": "",
+  "IsAbsolutePath": false,
+  "Id": null,
+  "Tags": ["abstract", "loop"],
+  "Version": 2
+}

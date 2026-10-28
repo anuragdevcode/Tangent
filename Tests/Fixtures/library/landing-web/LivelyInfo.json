@@ -1,0 +1,11 @@
+{
+  "Title": "Landing Page",
+  "Thumbnail": "thumb.jpg",
+  "Type": "web",
+  "FileName": "index.html",
+  "Desc": "An interactive landing page wallpaper with controls.",
+  "Author": "Someone",
+  "IsAbsolutePath": false,
+  "Tags": ["web"],
+  "Version": 1
+}

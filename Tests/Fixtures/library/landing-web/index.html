@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#123}</style>
+</head>
+<body>
+<div id="bg"></div>
+<script>
+  // Page-side contract for property values. The recording array exists so
+  // `--probe-bridge` can assert what the host actually delivered.
+  window.__packCalls = [];
+  window.tangentPropertyListener = function (name, value) {
+    window.__packCalls.push([name, value]);
+    if (name === 'tint') { document.body.style.background = value; }
+  };
+</script>
+</body>
+</html>
