@@ -2,11 +2,12 @@
 
 Tangent is a single AppKit process. It owns one desktop-level window and one
 player per display, reads wallpaper packs from disk in place, and exposes a
-menu-bar UI plus three optional windows (gallery, properties, settings).
+menu-bar UI: a status-item popover plus the library, properties, Settings and
+About windows.
 
 ```
                  ┌──────────────┐
- status item ──► │  AppDelegate │ ──► Library / Properties / Settings windows
+ status item ──► │  AppDelegate │ ──► Popover / Library / Properties / Settings
                  └──────┬───────┘
                         │
                  ┌──────▼────────┐        ┌───────────────┐
@@ -69,7 +70,17 @@ crashing window manager.
 | `Packs/WallpaperType.swift` | type names, support status, user-facing reasons |
 | `Playback/PlaybackMonitor.swift` | fullscreen / battery / lock detection |
 | `Hotkeys/HotkeyManager.swift` | Carbon hot keys, bindings, validation, persistence |
-| `UI/LibraryWindowController.swift` | gallery window, grid, details bar, apply flow |
+| `UI/LibraryWindowController.swift` | library window: sidebar, gallery, inspector, section pages, window shortcuts |
+| `UI/LibraryModel.swift` | library entries, favorites, hidden packs, queries |
+| `UI/LibraryPages.swift` | Displays, Automation and About pages |
+| `UI/WallpaperCardView.swift` | 16:10 gallery card, hover lift, video preview, context menu |
+| `UI/WallpaperInspectorView.swift` | inspector: preview, details and actions |
+| `UI/MenuBarPopoverController.swift` | status-item popover |
+| `UI/AppModel.swift` | `AppSnapshot` / `AppActions` interface between UI and shell |
+| `UI/Theme.swift` | colors, type scale, spacing, radii and animation tokens |
+| `UI/Components.swift` | themed surfaces, buttons, badges, labels and shared views |
+| `UI/AboutContent.swift` | shared About copy and controls |
+| `UI/AboutWindowController.swift` | standalone About window |
 | `UI/GalleryModel.swift` | search, filters, cycling |
 | `UI/ControlPanelController.swift` | property editor |
 | `UI/SettingsWindowController.swift` | four panes and shortcut recorder |
@@ -222,7 +233,7 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 163 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 167 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling, and
 shortcut validation/persistence.

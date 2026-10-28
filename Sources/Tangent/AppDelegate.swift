@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
+    private var statusMenu: NSMenu?
     private let engine = WallpaperEngine()
     private let store = WallpaperStore()
     private let playback = PlaybackMonitor()
@@ -14,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controlPanel: ControlPanelController?
     private let hotkeys = HotkeyManager()
     private var settingsWindow: SettingsWindowController?
+    private var aboutWindow: AboutWindowController?
+    private var popover: MenuBarPopoverController!
+    private var actions: AppActions!
 
     /// Set from the command line for scripted use and verification.
     var initialConfig: WallpaperConfig?
@@ -32,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `--gallery-search <text>` / `--gallery-select N`: snapshot helpers.
     var gallerySearch: String?
     var gallerySelectionIndex: Int?
+    /// `--library-section N`: open the main window on a specific section.
+    var librarySectionIndex: Int?
     /// `--report-frames <seconds>`: print libmpv frame counters, then quit.
     var frameReportDelay: Double?
     /// Set by `--ephemeral` for scripted runs that must not replace the user's
@@ -45,11 +51,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             accessibilityDescription: "Tangent"
         )
         statusItem.button?.toolTip = "Tangent"
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(statusItemClicked(_:))
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         libraryModel = LibraryModel()
-        libraryModel.onApply = { [weak self] pack in
-            self?.apply(pack)
-        }
+        actions = makeActions()
+        popover = MenuBarPopoverController(actions: actions)
+        engine.onChange = { [weak self] in self?.engineDidChange() }
 
         playback.onPause = { [weak self] reason in self?.engine.pause(reason) }
         playback.onResume = { [weak self] reason in self?.engine.resume(reason) }
@@ -65,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                 guard let self else { return }
                 self.writeSnapshot(of: self.settingsWindow?.window, to: snapshotSettingsPath)
-                NSApp.terminate(nil)
+                self.finishScriptedRun()
             }
             return
         }
@@ -73,11 +82,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if openLibraryOnLaunch {
             showLibrary()
             if let snapshotPath {
+                // Give AppKit a couple of frames to lay out and draw the window
+                // before capturing it.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                     guard let self else { return }
                     self.writeSnapshot(of: self.libraryWindow?.window, to: snapshotPath)
-                    NSApp.terminate(nil)
+                    self.finishScriptedRun()
                 }
+                return
             }
         }
 
@@ -96,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                     guard let self else { return }
                     self.writeSnapshot(of: self.controlPanel?.window, to: snapshotPropertiesPath)
-                    NSApp.terminate(nil)
+                    self.finishScriptedRun()
                 }
             }
             if let frameReportDelay {
@@ -114,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     ), let text = String(data: data, encoding: .utf8) {
                         print(text)
                     }
-                    NSApp.terminate(nil)
+                    self.finishScriptedRun()
                 }
             }
             return
@@ -194,6 +206,136 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.stop()
     }
 
+    // MARK: - Interface actions
+
+    /// Everything the AppKit interface can ask the app shell to do. The windows
+    /// stay independent of the engine by talking through these closures.
+    private func makeActions() -> AppActions {
+        var actions = AppActions()
+        actions.snapshot = { [weak self] in self?.makeSnapshot() ?? AppSnapshot() }
+
+        actions.apply = { [weak self] pack in self?.apply(pack) }
+        actions.applyToAllScreens = { [weak self] pack in
+            guard let self else { return }
+            self.engine.resetOverrides()
+            self.apply(pack)
+        }
+        actions.setForThisScreen = { [weak self] pack in self?.setForCurrentScreen(pack) }
+        actions.reveal = { pack in
+            NSWorkspace.shared.activateFileViewerSelecting([pack.libraryEntry])
+        }
+        actions.duplicate = { [weak self] pack in
+            _ = self?.libraryModel.duplicate(pack)
+        }
+        actions.removeFromLibrary = { [weak self] pack in
+            self?.libraryModel.hide(pack)
+        }
+        actions.addWallpaper = { [weak self] in self?.pickWallpaperToAdd() }
+        actions.scanFolder = { [weak self] in self?.pickFolderToScan() }
+        actions.revealLibraryFolder = { [weak self] in self?.libraryModel.revealLibraryFolder() }
+        actions.restoreHidden = { [weak self] in self?.libraryModel.restoreHidden() }
+        actions.openLibrary = { [weak self] in self?.showLibrary() }
+        actions.openLibrarySection = { [weak self] section in self?.showLibrarySection(section) }
+
+        actions.togglePause = { [weak self] in self?.togglePause() }
+        actions.nextWallpaper = { [weak self] in self?.nextWallpaper() }
+        actions.stop = { [weak self] in self?.stopWallpaper() }
+        actions.setMuted = { [weak self] muted in
+            self?.engine.setMuted(muted)
+            self?.rebuildMenu()
+        }
+        actions.setPolicy = { [weak self] policy in
+            self?.playback.setPolicy(policy)
+            self?.rebuildMenu()
+        }
+        actions.setHotkeysEnabled = { [weak self] enabled in
+            guard let self else { return }
+            self.hotkeys.isEnabled = enabled
+            self.settingsWindow?.reload()
+            self.rebuildMenu()
+        }
+
+        actions.useDefaultForDisplay = { [weak self] id in
+            self?.engine.useDefault(for: id)
+        }
+        actions.pinCurrentToDisplay = { [weak self] id in
+            guard let self, let config = self.engine.layout.defaultConfig else { return }
+            self.engine.pin(config, for: id)
+        }
+        actions.turnOffDisplay = { [weak self] id in
+            self?.engine.disable(id)
+        }
+        actions.resetDisplayOverrides = { [weak self] in
+            self?.engine.resetOverrides()
+        }
+
+        actions.openSettings = { [weak self] in self?.showSettings() }
+        actions.openAbout = { [weak self] in self?.showAbout() }
+        actions.openProperties = { [weak self] pack in self?.showPropertiesFor(pack) }
+        actions.quit = { NSApp.terminate(nil) }
+        return actions
+    }
+
+    private func makeSnapshot() -> AppSnapshot {
+        var snapshot = AppSnapshot()
+        snapshot.isPaused = engine.isPaused
+        snapshot.pauseReasons = engine.pauseReasons
+        snapshot.isMuted = engine.isMuted
+        snapshot.defaultConfig = engine.layout.defaultConfig
+        snapshot.currentPack = currentLibraryPack()
+        snapshot.policy = playback.policy
+        snapshot.packCount = libraryModel?.packs.count ?? 0
+        snapshot.hiddenCount = libraryModel?.hiddenCount ?? 0
+        snapshot.favorites = libraryModel?.favorites ?? []
+        snapshot.hotkeysEnabled = hotkeys.isEnabled
+        snapshot.hotkeyStatus = hotkeys.statusDescription
+        snapshot.statusDescription = engine.statusDescription
+        snapshot.activeConfigs = engine.activeConfigs
+        snapshot.displays = NSScreen.screens.map { screen in
+            let id = DisplayIdentity.id(of: screen)
+            let key = DisplayIdentity.key(id)
+            return DisplaySummary(
+                id: id,
+                label: DisplayIdentity.label(for: screen),
+                isMain: screen == NSScreen.main,
+                config: engine.layout.config(for: id),
+                isPinned: engine.layout.pins[key] != nil,
+                isDisabled: engine.layout.disabled.contains(key)
+            )
+        }
+        return snapshot
+    }
+
+    /// Changes made by the engine are saved and mirrored in the interface.
+    private func engineDidChange() {
+        if persistSelection, engine.hasWallpaper {
+            store.save(engine.layout)
+        }
+        rebuildMenu()
+    }
+
+    /// Applies a wallpaper to the display under the pointer (the screen the
+    /// menu bar belongs to, in practice), falling back to the main display.
+    private func setForCurrentScreen(_ pack: Pack) {
+        guard let config = WallpaperConfig(pack: pack) else {
+            alert("Cannot use this wallpaper", "\(PackFormat.infoFile) does not resolve to a playable file.")
+            return
+        }
+
+        let point = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+        guard let screen else { return }
+
+        if engine.layout.defaultConfig == nil {
+            engine.start(config: config)
+        } else {
+            engine.pin(config, for: DisplayIdentity.id(of: screen))
+        }
+        persistLayout()
+    }
+
     // MARK: - Menu
 
     private func rebuildMenu() {
@@ -212,7 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(makeItem(engine.isPaused ? "Resume" : "Pause", #selector(togglePause)))
             menu.addItem(makeItem("Next Wallpaper", #selector(nextWallpaperAction)))
             let properties = makeItem("Wallpaper Properties…", #selector(showProperties), key: "p")
-            properties.isEnabled = propertiesTarget != nil
+            properties.isEnabled = propertiesTarget(for: nil) != nil
             menu.addItem(properties)
             menu.addItem(makeItem("Stop", #selector(stopWallpaper)))
         }
@@ -226,7 +368,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(makeItem("Settings…", #selector(showSettings), key: ","))
         menu.addItem(makeItem("Quit Tangent", #selector(quit), key: "q"))
 
-        statusItem.menu = menu
+        statusMenu = menu
+        if popover?.isShown == true {
+            popover.reload()
+        }
+    }
+
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            popover?.close()
+            guard let menu = statusMenu else { return }
+            menu.popUp(
+                positioning: nil,
+                at: NSPoint(x: 0, y: sender.bounds.height + 4),
+                in: sender
+            )
+            return
+        }
+        popover?.show(relativeTo: sender)
     }
 
     /// Per-display assignment. Each screen gets a submenu so a different
@@ -388,17 +547,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showLibrary() {
         if libraryWindow == nil {
-            libraryWindow = LibraryWindowController(
-                model: libraryModel,
-                onAdd: { [weak self] in self?.pickWallpaperToAdd() },
-                onScanFolder: { [weak self] in self?.pickFolderToScan() }
-            )
+            libraryWindow = LibraryWindowController(model: libraryModel, actions: actions)
         }
         libraryWindow.present()
         libraryWindow.prepareForSnapshot(
             search: gallerySearch,
             selection: gallerySelectionIndex
         )
+        if let librarySectionIndex {
+            libraryWindow.selectSectionForSnapshot(librarySectionIndex)
+        }
+    }
+
+    private func showLibrarySection(_ section: LibrarySection) {
+        showLibrary()
+        libraryWindow.showSection(section)
+    }
+
+    @objc private func showAbout() {
+        if aboutWindow == nil {
+            aboutWindow = AboutWindowController()
+        }
+        aboutWindow?.present()
     }
 
     // MARK: - Settings and hotkeys
@@ -406,14 +576,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showSettings() {
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(
-                playback: playback,
+                actions: actions,
                 hotkeys: hotkeys,
-                library: libraryModel,
-                onPolicyChange: { [weak self] in self?.rebuildMenu() },
-                onHotkeysChange: { [weak self] in self?.rebuildMenu() },
-                onAddWallpaper: { [weak self] in self?.pickWallpaperToAdd() },
-                onOpenLibrary: { [weak self] in self?.showLibrary() },
-                onRevealLibrary: { [weak self] in self?.libraryModel.revealLibraryFolder() }
+                onHotkeysChange: { [weak self] in self?.rebuildMenu() }
             )
         }
         settingsWindow?.present()
@@ -475,11 +640,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Wallpaper properties
 
-    /// The first web wallpaper on screen that defines controls. Panels are
-    /// per-pack; with several web displays this picks the first one in screen
-    /// order, which matches what the user sees as "the wallpaper".
-    private var propertiesTarget: (config: WallpaperConfig, controls: [PropertyControl])? {
-        for config in engine.activeConfigs.map(\.config) {
+    /// The controls for a specific pack when one is given, otherwise the first
+    /// web wallpaper on screen that defines controls. Panels are per-pack; with
+    /// several web displays this picks the first one in screen order, which
+    /// matches what the user sees as "the wallpaper".
+    private func propertiesTarget(
+        for pack: Pack?
+    ) -> (config: WallpaperConfig, controls: [PropertyControl])? {
+        let configs = engine.activeConfigs.map(\.config)
+        let ordered: [WallpaperConfig]
+        if let pack, let entry = pack.entryURL?.standardizedFileURL.path {
+            ordered = configs.filter { $0.entryURL.standardizedFileURL.path == entry }
+                + configs.filter { $0.entryURL.standardizedFileURL.path != entry }
+        } else {
+            ordered = configs
+        }
+
+        for config in ordered {
             guard [.web, .webaudio, .url].contains(config.type),
                   let root = config.root
             else { continue }
@@ -492,7 +669,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showProperties() {
-        guard let target = propertiesTarget, let root = target.config.root else {
+        showPropertiesFor(nil)
+    }
+
+    private func showPropertiesFor(_ pack: Pack?) {
+        guard let target = propertiesTarget(for: pack), let root = target.config.root else {
             alert(
                 "No wallpaper properties",
                 "The active wallpaper has no property controls."
@@ -693,6 +874,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
+    /// Scripted runs (snapshots, frame reports) must end even if a window or a
+    /// media backend is still winding down. `NSApp.terminate` waits for those.
+    private func finishScriptedRun() -> Never {
+        fflush(stdout)
+        fflush(stderr)
+        exit(0)
+    }
+
     /// Renders the library window into a PNG using AppKit's own drawing path.
     /// Unlike `screencapture`, this needs no Screen Recording permission, so the
     /// UI can be verified in scripted runs.
@@ -701,19 +890,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the bitmap first; otherwise dark-mode text would be invisible on the
     /// transparent (white-rendered) areas.
     private func writeSnapshot(of window: NSWindow?, to path: String) {
-        guard let window,
-              let view = window.contentView,
+        guard let view = window?.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
         else {
             FileHandle.standardError.write(Data("snapshot: no window\n".utf8))
             return
         }
 
+        // Start from an opaque canvas: the window is opaque, so anything the
+        // view tree leaves untouched should read as canvas, not as a hole.
         if let context = NSGraphicsContext(bitmapImageRep: rep) {
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = context
-            window.backgroundColor.setFill()
+            Theme.canvas.setFill()
             view.bounds.fill()
+            context.flushGraphics()
             NSGraphicsContext.restoreGraphicsState()
         }
 

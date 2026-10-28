@@ -290,6 +290,12 @@ if let flagIndex = arguments.firstIndex(of: "--settings-pane"),
     appDelegate.settingsPaneIndex = index
 }
 
+if let flagIndex = arguments.firstIndex(of: "--library-section"),
+   arguments.count > flagIndex + 1,
+   let index = Int(arguments[flagIndex + 1]) {
+    appDelegate.librarySectionIndex = index
+}
+
 if let flagIndex = arguments.firstIndex(of: "--gallery-search"),
    arguments.count > flagIndex + 1 {
     appDelegate.gallerySearch = arguments[flagIndex + 1]

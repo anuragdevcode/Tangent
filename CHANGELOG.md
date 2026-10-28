@@ -4,10 +4,25 @@ All notable changes to Tangent are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 semantic versioning once it reaches 1.0.
 
-## [0.4.1] — 2026-10-28
+## [0.4.1] — 2026-10-29
 
 ### Added
 
+- AppKit-native library window: a source-list sidebar (All Wallpapers,
+  Favorites, Video, Web, Images, Displays, Automation, About), an adaptive 16:10
+  gallery with hover previews and a current-desktop badge, and a collapsible
+  300 pt inspector.
+- Menu bar popover with the active wallpaper, play/pause, per-display pills,
+  quick switches for playback rules and mute, and Preferences, support and Quit.
+- In-window Displays, Automation and About pages. The inspector steps aside on
+  pages that do not describe one wallpaper and returns where it was afterwards.
+- Card context menu: set for this screen, set for all screens, duplicate, show in
+  Finder and remove from library. Removal only hides the pack; the file on disk
+  is never touched, and **Restore** brings it back from Settings.
+- Favorites and a hidden-pack store, so removed wallpapers can be brought back
+  from Settings.
+- `⌘1`/`⌘2` navigation, Space live preview, `⌘,` Settings and `⌘W` close in the
+  library window.
 - Click-to-record shortcut rebinding in **Settings ▸ Shortcuts**, with per-action
   defaults, **Reset All Shortcuts**, and inline validation messages.
 - `KeyBinding` model with Control/Option requirement, modifier-only and Escape
@@ -19,9 +34,27 @@ semantic versioning once it reaches 1.0.
 
 ### Changed
 
-- Settings window grows to `600×470` to fit the recorder controls.
+- The gallery, inspector, Settings and About windows share one theme: solid
+  canvas and pane fills, 1 pt inner borders, continuous radii, SF Symbols and
+  spring hover motion. Window-wide vibrancy is gone; only the sidebar samples
+  the window, so wallpapers can no longer tint the interface.
+- The Settings window grows to `620×560`; the library window is `1140×760` with
+  a `900×660` minimum.
+- Displays, Automation and About manage their own copy; the inspector is
+  restored when returning to the library.
 - Recording cancels when the window resigns key or the pane changes.
 - A binding that saves but fails to register reports the conflict explicitly.
+
+### Fixed
+
+- A capsule view with a very large continuous corner radius no longer paints a
+  window-sized smear of its tint.
+- The inspector's **Paused** badge only appears for the wallpaper that is
+  actually running.
+- Section pages no longer resize the window when the inspector collapses.
+- The sidebar search placeholder no longer disappears when a page takes focus.
+- The automation status card says **No wallpaper set** instead of reporting a
+  pause reason when nothing is applied.
 
 ## [0.4.0] — 2026-10-27
 

@@ -140,6 +140,12 @@ final class MPVWallpaper: Wallpaper {
         setPause(true)
     }
 
+    func setMuted(_ muted: Bool) {
+        guard let mpv else { return }
+        var flag: Int32 = muted ? 1 : 0
+        api.setProperty(mpv, "mute", MPV_FORMAT_FLAG, &flag)
+    }
+
     func close() {
         stateLock.lock()
         if stopping {

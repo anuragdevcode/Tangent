@@ -38,6 +38,11 @@ final class ImageWallpaper: Wallpaper {
         imageView.animates = false
     }
 
+    /// Images and GIFs have no audio track.
+    func setMuted(_ muted: Bool) {
+        _ = muted
+    }
+
     func close() {
         imageView.animates = false
         imageView.image = nil

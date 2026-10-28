@@ -69,6 +69,7 @@ protocol Wallpaper: AnyObject {
     func play()
     func pause()
     func close()
+    func setMuted(_ muted: Bool)
 }
 
 /// Maps a library entry to a player implementation.

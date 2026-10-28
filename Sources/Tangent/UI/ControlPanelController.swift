@@ -49,6 +49,9 @@ final class ControlPanelController: NSWindowController, NSTextFieldDelegate {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        // Do not hand the first text field focus (and a selection) on open;
+        // the panel is for browsing values until the user clicks a control.
+        window?.makeFirstResponder(nil)
     }
 
     // MARK: - Interface

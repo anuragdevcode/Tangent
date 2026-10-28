@@ -17,15 +17,20 @@ final class WallpaperEngine {
     /// Keyed by `CGDirectDisplayID`, so a display keeps its wallpaper when the
     /// screen arrangement changes but that display stays connected.
     private var entries: [CGDirectDisplayID: Entry] = [:]
-    private var pauseReasons: Set<PauseReason> = []
+    private(set) var pauseReasons: Set<PauseReason> = []
     /// Files AVFoundation rejected; they are retried through libmpv.
     private var forcedMPVPaths: Set<String> = []
+
+    /// Called after any state change so the interface can refresh without
+    /// polling the engine.
+    var onChange: (() -> Void)?
 
     private(set) var layout = DisplayLayout()
 
     var isPaused: Bool { !pauseReasons.isEmpty }
     var activeDisplayCount: Int { entries.count }
     var hasWallpaper: Bool { layout.hasPlayableConfig }
+    var isMuted: Bool { layout.defaultConfig?.muteAudio ?? true }
 
     /// Configs currently on screen, in display order. Used by the Displays menu.
     var activeConfigs: [(screen: NSScreen, config: WallpaperConfig)] {
@@ -108,6 +113,7 @@ final class WallpaperEngine {
                 wallpaper.play()
             }
         }
+        onChange?()
     }
 
     // MARK: - Layout changes
@@ -144,17 +150,38 @@ final class WallpaperEngine {
         }
     }
 
+    /// Mutes or unmutes every player and remembers the choice in the layout.
+    /// Preview players never reach this path, so a muted desktop cannot be
+    /// unmuted by opening the inspector.
+    func setMuted(_ muted: Bool) {
+        if layout.defaultConfig != nil {
+            layout.defaultConfig?.muteAudio = muted
+        }
+        for key in layout.pins.keys {
+            layout.pins[key]?.muteAudio = muted
+        }
+        for entry in entries.values {
+            entry.wallpaper.setMuted(muted)
+        }
+        onChange?()
+    }
+
     // MARK: - Playback
 
     func pause(_ reason: PauseReason = .user) {
         pauseReasons.insert(reason)
         entries.values.forEach { $0.wallpaper.pause() }
+        onChange?()
     }
 
     func resume(_ reason: PauseReason = .user) {
         pauseReasons.remove(reason)
-        guard !isPaused else { return }
+        guard !isPaused else {
+            onChange?()
+            return
+        }
         entries.values.forEach { $0.wallpaper.play() }
+        onChange?()
     }
 
     /// Retries one video with libmpv after AVFoundation reported it unplayable.
@@ -168,6 +195,7 @@ final class WallpaperEngine {
         layout = DisplayLayout()
         pauseReasons.removeAll()
         forcedMPVPaths.removeAll()
+        onChange?()
     }
 
     private func teardown() {

@@ -5,58 +5,55 @@ import Carbon.HIToolbox
 /// General (library), Playback (rules), Shortcuts (global hot keys), About.
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
-    private let playback: PlaybackMonitor
+    private let actions: AppActions
     private let hotkeys: HotkeyManager
-    private let library: LibraryModel
-
-    private let onPolicyChange: () -> Void
     private let onHotkeysChange: () -> Void
-    private let onAddWallpaper: () -> Void
-    private let onOpenLibrary: () -> Void
-    private let onRevealLibrary: () -> Void
 
+    private var targets: [ActionTarget] = []
     private var paneContainer: NSView!
     private var paneSelector: NSSegmentedControl!
     private var panes: [NSView] = []
-    private var fullscreenButton: NSButton!
-    private var batteryButton: NSButton!
-    private var lockButton: NSButton!
-    private var hotkeyToggle: NSButton!
+
+    private var packCountLabel: NSTextField!
+    private var hiddenCountLabel: NSTextField!
+    private var restoreButton: HoverButton!
+    private var libraryPathLabel: NSTextField!
+
+    private var fullscreenSwitch: NSSwitch!
+    private var batterySwitch: NSSwitch!
+    private var lockSwitch: NSSwitch!
+    private var statusPill: StatusPillView!
+    private var statusTitle: NSTextField!
+    private var statusDetail: NSTextField!
+
+    private var hotkeySwitch: NSSwitch!
     private var hotkeyStatusLabel: NSTextField!
-    private var hotkeyButtons: [HotkeyManager.Action: NSButton] = [:]
+    private var hotkeyButtons: [HotkeyManager.Action: HoverButton] = [:]
     private var bindingMessageLabel: NSTextField!
     private var recordingAction: HotkeyManager.Action?
     private var keyMonitor: Any?
-    private var packCountLabel: NSTextField!
-    private var libraryPathLabel: NSTextField!
 
     init(
-        playback: PlaybackMonitor,
+        actions: AppActions,
         hotkeys: HotkeyManager,
-        library: LibraryModel,
-        onPolicyChange: @escaping () -> Void,
-        onHotkeysChange: @escaping () -> Void,
-        onAddWallpaper: @escaping () -> Void,
-        onOpenLibrary: @escaping () -> Void,
-        onRevealLibrary: @escaping () -> Void
+        onHotkeysChange: @escaping () -> Void
     ) {
-        self.playback = playback
+        self.actions = actions
         self.hotkeys = hotkeys
-        self.library = library
-        self.onPolicyChange = onPolicyChange
         self.onHotkeysChange = onHotkeysChange
-        self.onAddWallpaper = onAddWallpaper
-        self.onOpenLibrary = onOpenLibrary
-        self.onRevealLibrary = onRevealLibrary
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 470),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 560),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "Tangent Settings"
+        window.title = "Settings"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isReleasedWhenClosed = false
+        window.backgroundColor = .windowBackgroundColor
         window.center()
 
         super.init(window: window)
@@ -71,6 +68,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     deinit {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
     }
+
+    // MARK: - Presentation
 
     func present() {
         finishRecording()
@@ -103,8 +102,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private func buildInterface() {
         guard let content = window?.contentView else { return }
 
-        // A segmented header is used instead of NSTabView: it renders
-        // consistently in dark mode and in the in-process snapshot path.
+        let background = VisualEffectView(material: .contentBackground, blending: .behindWindow)
+        background.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(background)
+        NSLayoutConstraint.activate([
+            background.topAnchor.constraint(equalTo: content.topAnchor),
+            background.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            background.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            background.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+        ])
+
         paneSelector = NSSegmentedControl(
             labels: ["General", "Playback", "Shortcuts", "About"],
             trackingMode: .selectOne,
@@ -112,6 +119,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             action: #selector(paneChanged)
         )
         paneSelector.selectedSegment = 0
+        paneSelector.controlSize = .regular
+        paneSelector.segmentStyle = .automatic
         paneSelector.translatesAutoresizingMaskIntoConstraints = false
 
         paneContainer = NSView()
@@ -121,10 +130,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         content.addSubview(paneContainer)
 
         NSLayoutConstraint.activate([
-            paneSelector.topAnchor.constraint(equalTo: content.topAnchor, constant: 14),
+            paneSelector.topAnchor.constraint(equalTo: content.topAnchor, constant: 40),
             paneSelector.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            paneSelector.widthAnchor.constraint(equalToConstant: 390),
 
-            paneContainer.topAnchor.constraint(equalTo: paneSelector.bottomAnchor, constant: 8),
+            paneContainer.topAnchor.constraint(equalTo: paneSelector.bottomAnchor, constant: 2),
             paneContainer.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             paneContainer.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             paneContainer.bottomAnchor.constraint(equalTo: content.bottomAnchor),
@@ -151,246 +161,380 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func makePane() -> (root: NSView, stack: NSStackView) {
-        let root = NSView()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 12
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
-            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 22),
-            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -22),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -18),
-        ])
-        return (root, stack)
-    }
-
-    private func heading(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 15, weight: .semibold)
-        return label
-    }
-
-    private func caption(_ text: String) -> NSTextField {
-        let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 11)
-        label.textColor = .secondaryLabelColor
-        return label
-    }
-
     // MARK: - General
 
     private func generalPane() -> NSView {
-        let (root, stack) = makePane()
+        let mark = BrandMarkView(size: 54)
+        let title = makeLabel("Tangent", font: Theme.font(26, .bold))
+        let subtitle = makeLabel(
+            "Native wallpaper engine for macOS",
+            font: Theme.callout,
+            color: .secondaryLabelColor
+        )
+        let version = BadgeView(text: Format.version(), symbol: "checkmark.seal", tint: Theme.accent)
+        let titleBlock = vstack([title, subtitle, version], spacing: 3, alignment: .leading)
+        let header = hstack([mark, titleBlock], spacing: 14)
 
-        let title = NSTextField(labelWithString: "Tangent")
-        title.font = .systemFont(ofSize: 22, weight: .bold)
-
-        let subtitle = NSTextField(labelWithString: "Native wallpaper engine for macOS")
-        subtitle.font = .systemFont(ofSize: 12)
-        subtitle.textColor = .secondaryLabelColor
-
-        packCountLabel = NSTextField(labelWithString: "")
-        packCountLabel.font = .systemFont(ofSize: 12, weight: .medium)
-
-        libraryPathLabel = NSTextField(labelWithString: PackLibrary.defaultRoot.path)
-        libraryPathLabel.font = .systemFont(ofSize: 10)
-        libraryPathLabel.textColor = .tertiaryLabelColor
+        packCountLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
+        hiddenCountLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
+        libraryPathLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
         libraryPathLabel.lineBreakMode = .byTruncatingMiddle
-        libraryPathLabel.isSelectable = true
-        libraryPathLabel.maximumNumberOfLines = 1
+        libraryPathLabel.toolTip = PackLibrary.defaultRoot.path
 
-        let openButton = NSButton(title: "Open Library…", target: self, action: #selector(openLibraryTapped))
-        let addButton = NSButton(title: "Add Wallpaper…", target: self, action: #selector(addWallpaperTapped))
-        let revealButton = NSButton(title: "Show Folder", target: self, action: #selector(revealLibraryTapped))
-        revealButton.bezelStyle = .inline
+        restoreButton = smallButton("Restore", action: actions.restoreHidden)
+        restoreButton.toolTip = "Bring wallpapers removed from the library back"
 
-        let buttons = NSStackView(views: [openButton, addButton, revealButton])
-        buttons.orientation = .horizontal
-        buttons.spacing = 8
+        let librarySection = GroupedSection(
+            title: "Wallpaper Library",
+            rows: [
+                SettingsRow(
+                    symbol: "square.grid.2x2",
+                    title: "Wallpapers",
+                    subtitle: "Referenced in place — adding a folder never copies it.",
+                    trailing: trailingLabel(packCountLabel)
+                ),
+                HairlineView(),
+                SettingsRow(
+                    symbol: "folder",
+                    title: "Library Folder",
+                    subtitle: nil,
+                    trailing: smallButton("Show in Finder", action: actions.revealLibraryFolder)
+                ),
+                HairlineView(),
+                SettingsRow(
+                    symbol: "eye.slash",
+                    title: "Hidden Wallpapers",
+                    subtitle: "Removed through the app stay on disk. Restore them here.",
+                    trailing: hstack(
+                        [
+                            hiddenCountLabel,
+                            restoreButton,
+                        ],
+                        spacing: 10
+                    )
+                ),
+            ]
+        )
 
-        stack.addArrangedSubview(title)
-        stack.addArrangedSubview(subtitle)
-        stack.setCustomSpacing(18, after: subtitle)
-        stack.addArrangedSubview(heading("Wallpaper Library"))
-        stack.addArrangedSubview(packCountLabel)
-        stack.addArrangedSubview(libraryPathLabel)
-        stack.addArrangedSubview(buttons)
-        stack.addArrangedSubview(caption(
-            "Packs are referenced in place; adding a folder does not copy it. "
-            + "Tangent lives in the menu bar — use the sparkles icon to change, pause or stop the wallpaper."
-        ))
-        return root
+        let folderRow = SettingsRow(
+            symbol: "externaldrive",
+            title: "Location",
+            subtitle: nil,
+            trailing: trailingLabel(libraryPathLabel)
+        )
+
+        let actionsSection = GroupedSection(
+            title: "Manage",
+            rows: [
+                SettingsRow(
+                    symbol: "plus",
+                    title: "Add Wallpaper…",
+                    subtitle: "Video, image, GIF, web page or a wallpaper pack folder.",
+                    trailing: smallButton("Add", action: actions.addWallpaper)
+                ),
+                HairlineView(),
+                SettingsRow(
+                    symbol: "square.grid.2x2.fill",
+                    title: "Open Library",
+                    subtitle: "Browse, search and apply wallpapers.",
+                    trailing: smallButton("Open", action: actions.openLibrary)
+                ),
+            ]
+        )
+
+        let note = makeWrappingLabel(
+            "Tangent lives in the menu bar. Use the sparkles icon to change, pause or stop "
+            + "the wallpaper without opening this window.",
+            font: Theme.caption,
+            color: .tertiaryLabelColor
+        )
+        note.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
+        let stack = vstack(
+            [header, spacing(6), librarySection, folderRow, actionsSection, note],
+            spacing: Theme.Spacing.regular
+        )
+        stack.setCustomSpacing(20, after: header)
+        for wide in [librarySection, folderRow, actionsSection] {
+            wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+
+        return wrapInPage(stack)
+    }
+
+    private func trailingLabel(_ label: NSTextField) -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: container.topAnchor),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+        return container
+    }
+
+    private func smallButton(_ title: String, action: @escaping () -> Void) -> HoverButton {
+        let button = HoverButton(title, style: .outlined, target: nil, action: nil)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        button.font = Theme.caption
+        let target = ActionTarget { _ in action() }
+        targets.append(target)
+        button.target = target
+        button.action = #selector(ActionTarget.fire(_:))
+        return button
     }
 
     // MARK: - Playback
 
     private func playbackPane() -> NSView {
-        let (root, stack) = makePane()
+        fullscreenSwitch = makeSwitch { [weak self] isOn in
+            self?.setPolicy(pauseOnFullscreen: isOn)
+        }
+        batterySwitch = makeSwitch { [weak self] isOn in
+            self?.setPolicy(pauseOnBattery: isOn)
+        }
+        lockSwitch = makeSwitch { [weak self] isOn in
+            self?.setPolicy(pauseOnLock: isOn)
+        }
 
-        fullscreenButton = NSButton(
-            checkboxWithTitle: "Pause while a fullscreen app is in front",
-            target: self,
-            action: #selector(policyChanged)
-        )
-        batteryButton = NSButton(
-            checkboxWithTitle: "Pause on battery power",
-            target: self,
-            action: #selector(policyChanged)
-        )
-        lockButton = NSButton(
-            checkboxWithTitle: "Pause when the screen locks",
-            target: self,
-            action: #selector(policyChanged)
+        let statusCard = CardView()
+        statusCard.fillColor = Theme.cardFill
+        statusCard.translatesAutoresizingMaskIntoConstraints = false
+
+        statusPill = StatusPillView(text: "Live", tint: .systemGreen)
+        statusTitle = makeLabel("Rendering live", font: Theme.cardTitle)
+        statusDetail = makeWrappingLabel("", font: Theme.caption, color: .secondaryLabelColor)
+        let statusText = vstack([statusTitle, statusDetail], spacing: 2)
+        let statusRow = hstack([statusPill, statusText], spacing: 10)
+        statusCard.pin(statusRow, insets: NSEdgeInsets(top: 13, left: 13, bottom: 13, right: 13))
+
+        let rules = GroupedSection(
+            title: "Playback Rules",
+            rows: [
+                SettingsRow(
+                    symbol: "rectangle.inset.filled",
+                    title: "Pause for Fullscreen Apps",
+                    subtitle: "Stop rendering while an app covers the main display.",
+                    trailing: fullscreenSwitch
+                ),
+                HairlineView(),
+                SettingsRow(
+                    symbol: "battery.50percent",
+                    title: "Pause on Battery",
+                    subtitle: "Save power when the Mac is unplugged.",
+                    trailing: batterySwitch
+                ),
+                HairlineView(),
+                SettingsRow(
+                    symbol: "lock.display",
+                    title: "Pause When the Screen Locks",
+                    subtitle: "Stop decoding while the display is asleep or locked.",
+                    trailing: lockSwitch
+                ),
+            ]
         )
 
-        stack.addArrangedSubview(heading("Playback Rules"))
-        stack.addArrangedSubview(caption(
-            "These rules apply to every display. Playback resumes only when all active reasons have cleared, "
-            + "so closing a fullscreen app will not undo a manual pause."
-        ))
-        stack.addArrangedSubview(fullscreenButton)
-        stack.addArrangedSubview(batteryButton)
-        stack.addArrangedSubview(lockButton)
-        stack.addArrangedSubview(caption(
-            "A manual Pause from the menu is independent of these rules."
-        ))
-        return root
+        let note = makeWrappingLabel(
+            "Rules are independent: playback resumes only when every reason has cleared, so "
+            + "closing a fullscreen app will not undo a manual pause.",
+            font: Theme.caption,
+            color: .tertiaryLabelColor
+        )
+        note.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
+        let stack = vstack(
+            [makeLabel("Playback", font: Theme.windowTitle), statusCard, rules, note],
+            spacing: Theme.Spacing.regular
+        )
+        for wide in [statusCard, rules] {
+            wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        return wrapInPage(stack)
+    }
+
+    private func setPolicy(
+        pauseOnFullscreen: Bool? = nil,
+        pauseOnBattery: Bool? = nil,
+        pauseOnLock: Bool? = nil
+    ) {
+        var policy = actions.snapshot().policy
+        if let pauseOnFullscreen { policy.pauseOnFullscreen = pauseOnFullscreen }
+        if let pauseOnBattery { policy.pauseOnBattery = pauseOnBattery }
+        if let pauseOnLock { policy.pauseOnLock = pauseOnLock }
+        actions.setPolicy(policy)
+        refresh()
     }
 
     // MARK: - Shortcuts
 
     private func shortcutsPane() -> NSView {
-        let (root, stack) = makePane()
+        hotkeySwitch = makeSwitch { [weak self] isOn in
+            self?.actions.setHotkeysEnabled(isOn)
+            self?.refresh()
+            self?.onHotkeysChange()
+        }
 
-        hotkeyToggle = NSButton(
-            checkboxWithTitle: "Enable global shortcuts",
-            target: self,
-            action: #selector(hotkeysToggled)
+        hotkeyStatusLabel = makeWrappingLabel("", font: Theme.caption, color: .secondaryLabelColor)
+        hotkeyStatusLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
+        var rows: [NSView] = []
+        for action in HotkeyManager.Action.allCases {
+            let button = HoverButton(
+                hotkeys.binding(for: action).display,
+                style: .outlined,
+                target: nil,
+                action: nil
+            )
+            button.tag = Int(action.identifier)
+            button.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+            button.toolTip = "Click, then press a new combination"
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.widthAnchor.constraint(equalToConstant: 118).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 24).isActive = true
+            button.target = self
+            button.action = #selector(beginRecording(_:))
+            hotkeyButtons[action] = button
+
+            if !rows.isEmpty { rows.append(HairlineView()) }
+            rows.append(
+                SettingsRow(
+                    symbol: actionGlyph(action),
+                    title: action.title,
+                    trailing: button
+                )
+            )
+        }
+
+        let shortcuts = GroupedSection(title: "Global Shortcuts", rows: rows)
+
+        let toggleSection = GroupedSection(
+            title: nil,
+            rows: [
+                SettingsRow(
+                    symbol: "command",
+                    title: "Enable Global Shortcuts",
+                    subtitle: "Work while another app is frontmost. Carbon hot keys need no extra permission.",
+                    trailing: hotkeySwitch
+                )
+            ]
         )
 
-        hotkeyStatusLabel = NSTextField(wrappingLabelWithString: "")
-        hotkeyStatusLabel.font = .systemFont(ofSize: 11)
-
-        stack.addArrangedSubview(heading("Global Shortcuts"))
-        stack.addArrangedSubview(caption(
-            "Work while another app is frontmost. Click a shortcut, then press a new combination — "
-            + "Escape cancels and Delete restores the default. Carbon hot keys need no Accessibility "
-            + "or Input Monitoring permission."
-        ))
-        stack.addArrangedSubview(hotkeyToggle)
-
-        let grid = NSGridView()
-        grid.rowSpacing = 9
-        grid.columnSpacing = 22
-        for action in HotkeyManager.Action.allCases {
-            let name = NSTextField(labelWithString: action.title)
-            name.font = .systemFont(ofSize: 12)
-
-            let shortcut = NSButton(
-                title: hotkeys.binding(for: action).display,
-                target: self,
-                action: #selector(beginRecording(_:))
-            )
-            shortcut.tag = Int(action.identifier)
-            shortcut.bezelStyle = .rounded
-            shortcut.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
-            shortcut.toolTip = "Click, then press a new combination"
-            shortcut.translatesAutoresizingMaskIntoConstraints = false
-            shortcut.widthAnchor.constraint(equalToConstant: 118).isActive = true
-            shortcut.heightAnchor.constraint(equalToConstant: 24).isActive = true
-            hotkeyButtons[action] = shortcut
-
-            grid.addRow(with: [name, shortcut])
-        }
-        grid.column(at: 0).xPlacement = .leading
-        grid.column(at: 1).xPlacement = .trailing
-
-        bindingMessageLabel = NSTextField(wrappingLabelWithString: "")
-        bindingMessageLabel.font = .systemFont(ofSize: 11)
+        bindingMessageLabel = makeWrappingLabel("", font: Theme.caption, color: .secondaryLabelColor)
         bindingMessageLabel.isHidden = true
 
-        let resetAll = NSButton(
-            title: "Reset All Shortcuts",
-            target: self,
-            action: #selector(resetAllShortcuts)
-        )
-        resetAll.bezelStyle = .inline
+        let resetAll = smallButton("Reset All Shortcuts", action: resetAllShortcuts)
+        let footerRow = hstack([resetAll, flexibleSpacer()])
 
-        stack.addArrangedSubview(grid)
-        stack.addArrangedSubview(bindingMessageLabel)
-        stack.addArrangedSubview(resetAll)
-        stack.addArrangedSubview(hotkeyStatusLabel)
-        return root
+        let note = makeWrappingLabel(
+            "Click a shortcut, then press a new combination. Escape cancels; Delete restores the default.",
+            font: Theme.caption,
+            color: .tertiaryLabelColor
+        )
+        note.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
+        let stack = vstack(
+            [
+                makeLabel("Shortcuts", font: Theme.windowTitle),
+                toggleSection,
+                shortcuts,
+                bindingMessageLabel,
+                footerRow,
+                hotkeyStatusLabel,
+                note,
+            ],
+            spacing: Theme.Spacing.regular
+        )
+        for wide in [toggleSection, shortcuts, footerRow] {
+            wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        return wrapInPage(stack)
+    }
+
+    private func actionGlyph(_ action: HotkeyManager.Action) -> String {
+        switch action {
+        case .togglePause: return "pause.circle"
+        case .nextWallpaper: return "forward.end"
+        case .openLibrary: return "square.grid.2x2"
+        case .stopWallpaper: return "stop.circle"
+        }
     }
 
     // MARK: - About
 
     private func aboutPane() -> NSView {
-        let (root, stack) = makePane()
+        wrapInPage(AboutContent.page(centered: true), maxWidth: 460)
+    }
 
-        let title = NSTextField(labelWithString: "Tangent")
-        title.font = .systemFont(ofSize: 22, weight: .bold)
+    // MARK: - Page scaffold
 
-        let version = NSTextField(labelWithString: "Version \(Self.versionString)")
-        version.font = .systemFont(ofSize: 12)
-        version.textColor = .secondaryLabelColor
-
-        let rows = NSGridView()
-        rows.rowSpacing = 7
-        rows.columnSpacing = 18
-        rows.addRow(with: [Self.aboutKey("Bundle"), Self.aboutValue(Bundle.main.bundleIdentifier ?? "app.tangent.wallpaper")])
-        rows.addRow(with: [Self.aboutKey("Architecture"), Self.aboutValue(Self.architecture)])
-        rows.addRow(with: [Self.aboutKey("Minimum macOS"), Self.aboutValue("13.0")])
-        rows.addRow(with: [Self.aboutKey("Video"), Self.aboutValue("AVFoundation + libmpv (VP9, AV1, Matroska)")])
-        rows.addRow(with: [Self.aboutKey("libmpv"), Self.aboutValue(Self.libmpvDescription)])
-        rows.column(at: 0).xPlacement = .leading
-        rows.column(at: 1).xPlacement = .leading
-
-        stack.addArrangedSubview(title)
-        stack.addArrangedSubview(version)
-        stack.setCustomSpacing(18, after: version)
-        stack.addArrangedSubview(rows)
-        stack.addArrangedSubview(caption(
-            "Tangent is GPL-3.0. Bundled third-party licenses are in the app's "
-            + "Resources/Licenses folder."
-        ))
+    private func wrapInPage(_ content: NSView, maxWidth: CGFloat = 540) -> NSView {
+        let root = NSView()
+        root.translatesAutoresizingMaskIntoConstraints = false
+        let scroll = makePageScroll(content: content, maxWidth: maxWidth)
+        root.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: root.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
         return root
     }
 
-    private static func aboutKey(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 11, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        return label
+    // MARK: - Switches
+
+    private func makeSwitch(_ handler: @escaping (Bool) -> Void) -> NSSwitch {
+        let toggle = NSSwitch()
+        toggle.controlSize = .small
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+        let target = ActionTarget { sender in
+            handler((sender as? NSSwitch)?.state == .on)
+        }
+        targets.append(target)
+        toggle.target = target
+        toggle.action = #selector(ActionTarget.fire(_:))
+        return toggle
     }
 
-    private static func aboutValue(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 11)
-        label.lineBreakMode = .byTruncatingMiddle
-        return label
-    }
-
-    // MARK: - Refresh / actions
+    // MARK: - Refresh
 
     private func refresh() {
-        let policy = playback.policy
-        fullscreenButton?.state = policy.pauseOnFullscreen ? .on : .off
-        batteryButton?.state = policy.pauseOnBattery ? .on : .off
-        lockButton?.state = policy.pauseOnLock ? .on : .off
+        let snapshot = actions.snapshot()
+        let policy = snapshot.policy
+        fullscreenSwitch?.state = policy.pauseOnFullscreen ? .on : .off
+        batterySwitch?.state = policy.pauseOnBattery ? .on : .off
+        lockSwitch?.state = policy.pauseOnLock ? .on : .off
 
-        hotkeyToggle?.state = hotkeys.isEnabled ? .on : .off
+        hotkeySwitch?.state = snapshot.hotkeysEnabled ? .on : .off
         refreshBindingButtons()
         refreshHotkeyStatus()
 
-        let count = library.packs.count
-        packCountLabel?.stringValue = "\(count) wallpaper\(count == 1 ? "" : "s")"
-        libraryPathLabel?.stringValue = PackLibrary.defaultRoot.path
-        libraryPathLabel?.toolTip = PackLibrary.defaultRoot.path
+        packCountLabel?.stringValue = Format.count(snapshot.packCount, singular: "wallpaper")
+        libraryPathLabel?.stringValue = Format.relativePath(PackLibrary.defaultRoot)
+        hiddenCountLabel?.stringValue = snapshot.hiddenCount == 0
+            ? ""
+            : Format.count(snapshot.hiddenCount, singular: "hidden")
+        restoreButton?.isEnabled = snapshot.hiddenCount > 0
+
+        if let statusPill, let statusTitle, let statusDetail {
+            if snapshot.defaultConfig == nil {
+                statusPill.configure(text: "Off", tint: .secondaryLabelColor)
+                statusTitle.stringValue = "No wallpaper set"
+                statusDetail.stringValue = "Choose one from the library to bring the desktop to life."
+            } else {
+                statusPill.configure(
+                    text: snapshot.isPaused ? "Paused" : "Live",
+                    tint: snapshot.isPaused ? .systemOrange : .systemGreen
+                )
+                statusTitle.stringValue = snapshot.isPaused ? "Rendering paused" : "Rendering live"
+                statusDetail.stringValue = snapshot.pauseDescription
+                    ?? "\(snapshot.statusDescription)."
+            }
+        }
     }
 
     private func refreshHotkeyStatus() {
@@ -400,35 +544,21 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             : (hotkeys.isEnabled ? .systemOrange : .secondaryLabelColor)
     }
 
-    @objc private func policyChanged() {
-        var policy = playback.policy
-        policy.pauseOnFullscreen = fullscreenButton.state == .on
-        policy.pauseOnBattery = batteryButton.state == .on
-        policy.pauseOnLock = lockButton.state == .on
-        playback.setPolicy(policy)
-        onPolicyChange()
-    }
-
-    @objc private func hotkeysToggled() {
-        hotkeys.isEnabled = hotkeyToggle.state == .on
-        refreshHotkeyStatus()
-        onHotkeysChange()
-    }
-
-    // MARK: - Shortcut recorder
-
     private func refreshBindingButtons() {
         guard recordingAction == nil else { return }
         for action in HotkeyManager.Action.allCases {
             guard let button = hotkeyButtons[action] else { continue }
             button.title = hotkeys.binding(for: action).display
+            button.applyStyle()
             button.toolTip = hotkeys.isCustomized(action)
                 ? "Custom shortcut — click to change"
                 : "Default shortcut — click to change"
         }
     }
 
-    @objc private func beginRecording(_ sender: NSButton) {
+    // MARK: - Shortcut recorder
+
+    @objc private func beginRecording(_ sender: HoverButton) {
         guard let action = HotkeyManager.Action.action(for: UInt32(sender.tag)) else { return }
         finishRecording()
 
@@ -436,6 +566,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         for button in hotkeyButtons.values { button.isEnabled = false }
         sender.isEnabled = true
         sender.title = "Press keys…"
+        sender.applyStyle()
 
         showBindingMessage(
             "Press the new keys for \(action.title). Escape cancels; Delete restores the default.",
@@ -527,45 +658,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         bindingMessageLabel?.isHidden = text.isEmpty
     }
 
-    @objc private func resetAllShortcuts() {
+    private func resetAllShortcuts() {
         finishRecording()
         hotkeys.resetAllBindings()
         refreshHotkeyStatus()
         onHotkeysChange()
         showBindingMessage("All shortcuts restored to defaults.", color: .secondaryLabelColor)
-    }
-
-    @objc private func openLibraryTapped() { onOpenLibrary() }
-    @objc private func addWallpaperTapped() { onAddWallpaper() }
-    @objc private func revealLibraryTapped() { onRevealLibrary() }
-
-    // MARK: - Static metadata
-
-    private static var versionString: String {
-        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.4.1"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "\(short) (\(build))"
-    }
-
-    private static var architecture: String {
-        #if arch(arm64)
-        return "arm64 (Apple Silicon)"
-        #elseif arch(x86_64)
-        return "x86_64"
-        #else
-        return "unknown"
-        #endif
-    }
-
-    private static var libmpvDescription: String {
-        let bundled = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/Frameworks/libmpv.2.dylib")
-        if FileManager.default.fileExists(atPath: bundled.path) {
-            return "Bundled with the app"
-        }
-        if FileManager.default.fileExists(atPath: "/opt/homebrew/opt/mpv/lib/libmpv.2.dylib") {
-            return "External (Homebrew)"
-        }
-        return "Not installed"
     }
 }

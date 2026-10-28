@@ -9,8 +9,8 @@ assignments, playback rules and live controls.
 - Hardware-decoded H.264/HEVC through AVFoundation, plus VP9, AV1 and Matroska
   through a bundled libmpv.
 - Reads the widely used v1 wallpaper-pack format, including its control surface.
-- Global shortcuts, a searchable gallery and a four-pane Settings window, all
-  built with AppKit only.
+- Global shortcuts, a menu bar popover, a library window with an inspector and a
+  four-pane Settings window, all built with AppKit only.
 
 ## Requirements
 
@@ -41,10 +41,12 @@ uses Homebrew's libmpv at runtime.
 open build/Tangent.app
 ```
 
-A menu bar icon appears. From there:
+A menu bar icon appears. Clicking it opens a compact popover with the current
+wallpaper, play/pause, the per-display state and the quick toggles. From the
+menu:
 
-- **Library…** (⌘L) — searchable, filterable gallery; select a tile, then
-  double-click it or press Return to apply
+- **Library…** (⌘L) — the library window: browse by section, search, favorite,
+  inspect and apply wallpapers
 - **Open Wallpaper…** (⌘O) — open a pack folder, a video, a GIF, an image or an
   `.html` file
 - **Next Wallpaper** — cycle through the library's playable packs
@@ -68,17 +70,33 @@ delete your files.
 
 Default library folder: `~/Library/Application Support/Tangent/Library`
 
-The gallery has a search field (title, author, summary, tags and folder name), a
-type filter (All / Video / Web / GIF & Image / Unsupported) and a live result
-count. Selecting a tile only inspects it: the details bar shows its type,
-author, path and any reason it cannot run. Applying is explicit — double-click,
-press Return, or use **Apply** — so browsing cannot replace the desktop by
-accident. Search, filter and rescan keep the current selection when it is still
-visible.
+The gallery has a sidebar, an adaptive card grid and a collapsible inspector.
+The sidebar groups **All Wallpapers**, **Favorites**, **Video**, **Web** and
+**Images**, and carries the search field (title, author, summary, tags and folder
+name), the **Displays**, **Automation** and **About Tangent** pages, and a footer
+with Settings. The grid fits 16:10 cards to the window width; hovering lifts a
+card and starts a muted preview, and wallpapers currently on the desktop carry a
+glow badge. Double-click, press Return, or use the card's context menu to apply.
+**Space** toggles the inspector's live preview, **⌘1** returns to the library,
+**⌘2** opens Displays and **⌘,** opens Settings.
 
-Tiles show the pack thumbnail, or a frame extracted from the video for packs
+Selecting a card fills the inspector: a preview with **Preview**, favorite, type,
+title and author, a pause badge when the engine is paused, and the details
+(type, size, version, location) plus the actions. Displays, Automation and About
+do not describe one wallpaper, so the inspector steps aside there and returns
+where it was when you go back. The toolbar button or the inspector's close
+button collapses it.
+
+Applying is explicit, so browsing cannot replace the desktop by accident.
+Search, section and rescan keep the current selection while it is still visible.
+Cards show the pack thumbnail, or a frame extracted from the video for packs
 that ship without one. Unsupported packs stay visible, dimmed, with the reason
 shown instead of failing silently at apply time.
+
+Removing a wallpaper is a library operation, never a file operation: **Remove
+from Library** hides the pack and **Settings ▸ General ▸ Hidden Wallpapers ▸
+Restore** brings it back. The card menu also offers **Set for This Screen**,
+**Set for All Screens**, **Duplicate** and **Show in Finder**.
 
 ## Wallpaper types
 
@@ -278,9 +296,10 @@ Sources/Tangent/
   Hotkeys/HotkeyManager.swift     Carbon global shortcuts, rebinding, dispatch
   Packs/                     pack format, metadata/property parsing, library
                              scanning, thumbnails, JSON tree, property store
-  UI/                        AppKit gallery, tiles, control panel, Settings with
-                             click-to-record shortcuts, query/filter and cycling
-  Diagnostics/SelfTests.swift     163-check compatibility suite
+  UI/                        AppKit library (sidebar, gallery, inspector), menu bar
+                             popover, Settings, About, control panel, theme and
+                             shared components
+  Diagnostics/SelfTests.swift     167-check compatibility suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
@@ -297,14 +316,15 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 163 checks` |
+| Compatibility suite (`--test`) | `PASS — 167 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 db330ac92988c8f7c2d7caa6e2ec81b243e42821af6acc4c79cf151c2e471f74`, arm64 |
+| Binary | `sha256 ecd2365b8c11364a1035078c9b3a3bced04c2d6d46786f23f759d00444637661`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
-| Library window | one `980×680` window at layer `0`, plus the wallpaper window |
-| Gallery selection (`--gallery-select 0`) | details bar shows type, author and path; Apply enabled only for playable packs |
-| Gallery empty state (`--gallery-search zzzz`) | count `0 of 1`; "No wallpapers match your search or filter." over an empty grid |
+| Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
+| Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
+| Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
+| Gallery empty state (`--gallery-search zzzz`) | "No Wallpapers Match" over an empty grid, with a **Clear Search** action |
 | Gallery/hotkey unit tests | 50 assertions: search across title/author/summary/tags/folder, five filters, combined search+filter, wrapping next/previous cycling that skips unsupported packs, shortcut uniqueness/dispatch, rebinding validation, persistence and reset |
 | Global shortcuts (`--hotkey-status`) | all 4 default bindings register (handler status 0) while the saved preference stays off |
 | Custom binding registration | a throwaway suite rebinds Open Library to `⌃⌥⇧K`; all 4 actions register, 0 failures |

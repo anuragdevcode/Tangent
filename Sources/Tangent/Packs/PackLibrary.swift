@@ -10,9 +10,13 @@ final class PackLibrary {
     private let defaults: UserDefaults
     private let rootsKey = "tangent.library.roots"
     private let entriesKey = "tangent.library.entries"
+    private let hiddenKey = "tangent.library.hidden"
 
     private(set) var roots: [URL]
     private(set) var entries: [URL]
+    /// Packs removed through the interface. Hiding rather than deleting keeps
+    /// the promise that Tangent never removes files from disk.
+    private(set) var hidden: Set<String>
 
     /// `~/Library/Application Support/Tangent/Library`
     static var defaultRoot: URL {
@@ -26,6 +30,7 @@ final class PackLibrary {
         let entryPaths = defaults.stringArray(forKey: entriesKey) ?? []
         self.roots = rootPaths.map { URL(fileURLWithPath: $0) }
         self.entries = entryPaths.map { URL(fileURLWithPath: $0) }
+        self.hidden = Set(defaults.stringArray(forKey: hiddenKey) ?? [])
 
         if roots.isEmpty {
             roots = [Self.defaultRoot]
@@ -54,21 +59,36 @@ final class PackLibrary {
         persist()
     }
 
+    func hide(_ pack: Pack) {
+        hidden.insert(pack.id)
+        persist()
+    }
+
+    func restoreHidden() {
+        hidden.removeAll()
+        persist()
+    }
+
+    func isHidden(_ pack: Pack) -> Bool {
+        hidden.contains(pack.id)
+    }
+
     /// Full scan. Deduplicates by resolved entry point so a pack that is both
-    /// in the library root and explicitly added appears once.
+    /// in the library root and explicitly added appears once. Hidden packs are
+    /// left in place on disk and skipped here.
     func scan() -> [Pack] {
         var found: [String: Pack] = [:]
 
         for root in roots {
             for child in contents(of: root) {
-                if let pack = Pack.synthetic(fileURL: child) {
+                if let pack = Pack.synthetic(fileURL: child), !hidden.contains(pack.id) {
                     found[pack.id] = pack
                 }
             }
         }
 
         for entry in entries {
-            if let pack = Pack.synthetic(fileURL: entry) {
+            if let pack = Pack.synthetic(fileURL: entry), !hidden.contains(pack.id) {
                 found[pack.id] = pack
             }
         }
@@ -91,5 +111,6 @@ final class PackLibrary {
     private func persist() {
         defaults.set(roots.map(\.path), forKey: rootsKey)
         defaults.set(entries.map(\.path), forKey: entriesKey)
+        defaults.set(Array(hidden).sorted(), forKey: hiddenKey)
     }
 }

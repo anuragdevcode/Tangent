@@ -17,6 +17,7 @@ final class WebWallpaper: NSObject, Wallpaper, WKNavigationDelegate {
     private let root: URL?
     private let bindings: [(name: String, value: JSONValue)]
     private var isPaused = false
+    private var isMuted = false
 
     /// Fired after the page finishes loading and property defaults are applied.
     var onLoad: (() -> Void)?
@@ -63,6 +64,15 @@ final class WebWallpaper: NSObject, Wallpaper, WKNavigationDelegate {
         evaluate("document.querySelectorAll('video,audio').forEach(function(e){e.pause()});")
     }
 
+    /// Mutes all media now and for elements added later. Web wallpapers that
+    /// synthesise audio in Web Audio are intentionally left alone: they have no
+    /// media element to mute, and cutting the graph would silence the visual
+    /// reaction too.
+    func setMuted(_ muted: Bool) {
+        isMuted = muted
+        evaluate(Self.muteScript(muted: muted))
+    }
+
     func close() {
         webView.stopLoading()
         webView.navigationDelegate = nil
@@ -100,6 +110,25 @@ final class WebWallpaper: NSObject, Wallpaper, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
+    /// Keeps media elements muted and remembers the setting for elements the
+    /// page adds later.
+    private static func muteScript(muted: Bool) -> String {
+        let flag = muted ? "true" : "false"
+        return """
+        (function(){
+          window.__tangentMuted = \(flag);
+          function apply(){document.querySelectorAll('video,audio').forEach(function(e){e.muted=window.__tangentMuted;});}
+          apply();
+          if (!window.__tangentMuteObserver) {
+            window.__tangentMuteObserver = new MutationObserver(function(){
+              if (window.__tangentMuted) { apply(); }
+            });
+            window.__tangentMuteObserver.observe(document.documentElement, {childList:true, subtree:true});
+          }
+        })();
+        """
+    }
+
     /// Read-only evaluation hook used by the `--probe-bridge` integration check.
     func evaluateForTesting(_ script: String, completion: @escaping (Any?) -> Void) {
         webView.evaluateJavaScript(script) { result, error in
@@ -122,6 +151,9 @@ final class WebWallpaper: NSObject, Wallpaper, WKNavigationDelegate {
 
         // Property defaults are applied after navigation completes.
         applyPackProperties()
+        if isMuted {
+            evaluate(Self.muteScript(muted: true))
+        }
 
         isLoaded = true
         if !isPaused {

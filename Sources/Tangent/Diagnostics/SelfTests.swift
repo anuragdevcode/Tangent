@@ -207,6 +207,20 @@ enum SelfTests {
         expect(web?.entryURL?.lastPathComponent == "index.html", "web pack resolves index.html")
         expect(web?.unsupportedReason == nil, "web pack is usable")
 
+        // Removing a pack hides it from the library; the files stay on disk and
+        // restoring brings it back.
+        if let aurora = packs.first(where: { $0.info.title == "Aurora Drift" }) {
+            library.hide(aurora)
+            expect(library.isHidden(aurora), "hide marks a pack hidden")
+            expect(!library.scan().contains { $0.id == aurora.id }, "hidden pack leaves the scan")
+            expect(FileManager.default.fileExists(atPath: aurora.folder.path),
+                   "hiding keeps the pack folder on disk")
+            library.restoreHidden()
+            expect(library.scan().contains { $0.id == aurora.id }, "restore brings the pack back")
+        } else {
+            expect(false, "fixture pack available for hide/restore checks")
+        }
+
         // MARK: Gallery query
 
         print("Gallery query")

@@ -70,6 +70,10 @@ final class VideoWallpaper: Wallpaper {
         player.pause()
     }
 
+    func setMuted(_ muted: Bool) {
+        player.isMuted = muted
+    }
+
     func close() {
         player.pause()
         looper?.disableLooping()
