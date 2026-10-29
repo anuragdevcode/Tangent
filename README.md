@@ -247,6 +247,7 @@ $BIN --snapshot-library /tmp/library.png
 $BIN --snapshot-library /tmp/gallery.png --gallery-search aurora --gallery-select 0
 $BIN --set ~/Wallpapers/aurora --snapshot-properties /tmp/properties.png
 $BIN --snapshot-settings /tmp/settings.png --settings-pane 2   # 0 General … 3 About
+$BIN --snapshot-popover /tmp/popover.png
 
 # Headless machine/display report
 $BIN --selftest
@@ -318,12 +319,15 @@ Built and observed on an M2 running macOS 27.0.1:
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
 | Compatibility suite (`--test`) | `PASS — 167 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 ecd2365b8c11364a1035078c9b3a3bced04c2d6d46786f23f759d00444637661`, arm64 |
+| Binary | `sha256 64cca7d760493132a864d135a081bf59a0ae16112b9bed5efe86753a12f4f612`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
+| Menu bar popover (`--snapshot-popover`) | a stable `340×516` surface across runs: hero preview, one action row, one display row and the pause/mute switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
 | Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
+| Inspector preview pill | keeps its `92×26` frame while the title flips **Preview** ↔ **Pause**, so the control never resizes mid-click |
+| Status capsules | keep their intrinsic width in the Settings playback card and the Automation page instead of stretching to fill the row |
 | Gallery empty state (`--gallery-search zzzz`) | "No Wallpapers Match" over an empty grid, with a **Clear Search** action |
 | Gallery/hotkey unit tests | 50 assertions: search across title/author/summary/tags/folder, five filters, combined search+filter, wrapping next/previous cycling that skips unsupported packs, shortcut uniqueness/dispatch, rebinding validation, persistence and reset |
 | Global shortcuts (`--hotkey-status`) | all 4 default bindings register (handler status 0) while the saved preference stays off |

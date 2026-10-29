@@ -284,6 +284,11 @@ if let flagIndex = arguments.firstIndex(of: "--snapshot-settings"),
     appDelegate.snapshotSettingsPath = arguments[flagIndex + 1]
 }
 
+if let flagIndex = arguments.firstIndex(of: "--snapshot-popover"),
+   arguments.count > flagIndex + 1 {
+    appDelegate.snapshotPopoverPath = arguments[flagIndex + 1]
+}
+
 if let flagIndex = arguments.firstIndex(of: "--settings-pane"),
    arguments.count > flagIndex + 1,
    let index = Int(arguments[flagIndex + 1]) {

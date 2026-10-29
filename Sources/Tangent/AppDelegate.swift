@@ -31,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var snapshotPropertiesPath: String?
     /// `--snapshot-settings <png>`: render the settings window, then quit.
     var snapshotSettingsPath: String?
+    /// `--snapshot-popover <png>`: render the menu bar popover, then quit.
+    var snapshotPopoverPath: String?
     /// `--settings-pane N`: open Settings on a specific pane (for snapshots).
     var settingsPaneIndex: Int?
     /// `--gallery-search <text>` / `--gallery-select N`: snapshot helpers.
@@ -102,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let screen = NSScreen.screens[initialDisplayIndex - 1]
                 engine.pin(config, for: DisplayIdentity.id(of: screen))
                 persistLayout()
+            }
+            if snapshotPopoverPath != nil {
+                schedulePopoverSnapshot()
+                return
             }
             if let snapshotPropertiesPath {
                 showProperties()
@@ -197,6 +203,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "libmpv is not available",
                 "This wallpaper uses VP9/WebM, AV1 or Matroska, which need libmpv. Install it with `brew install mpv`, then apply the wallpaper again. H.264/HEVC wallpapers keep working without it."
             )
+        }
+
+        if snapshotPopoverPath != nil {
+            schedulePopoverSnapshot()
+        }
+    }
+
+    /// `--snapshot-popover`: show the popover, let it size itself, then capture
+    /// its content view. The popover has no window of its own to snapshot
+    /// through, so the view is rendered directly.
+    private func schedulePopoverSnapshot() {
+        guard let path = snapshotPopoverPath else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, let button = self.statusItem.button else { return }
+            self.popover.show(relativeTo: button)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.writeSnapshot(of: self.popover.view, to: path)
+                self.finishScriptedRun()
+            }
         }
     }
 
@@ -890,10 +915,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the bitmap first; otherwise dark-mode text would be invisible on the
     /// transparent (white-rendered) areas.
     private func writeSnapshot(of window: NSWindow?, to path: String) {
-        guard let view = window?.contentView,
+        guard let view = window?.contentView else {
+            FileHandle.standardError.write(Data("snapshot: no window\n".utf8))
+            return
+        }
+        writeSnapshot(of: view, to: path)
+    }
+
+    private func writeSnapshot(of view: NSView?, to path: String) {
+        guard let view,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
         else {
-            FileHandle.standardError.write(Data("snapshot: no window\n".utf8))
+            FileHandle.standardError.write(Data("snapshot: no view\n".utf8))
             return
         }
 

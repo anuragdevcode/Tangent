@@ -73,7 +73,7 @@ final class WallpaperInspectorView: NSView {
         primaryButton.target = self
         primaryButton.action = #selector(applyHere)
         primaryButton.translatesAutoresizingMaskIntoConstraints = false
-        primaryButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        primaryButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
         secondaryButton.target = self
         secondaryButton.action = #selector(applyAll)
@@ -93,7 +93,7 @@ final class WallpaperInspectorView: NSView {
         removeButton.target = self
         removeButton.action = #selector(remove)
         removeButton.translatesAutoresizingMaskIntoConstraints = false
-        removeButton.heightAnchor.constraint(equalToConstant: 26).isActive = true
+        removeButton.heightAnchor.constraint(equalToConstant: 24).isActive = true
         removeButton.font = Theme.caption
 
         favoriteButton.target = self
@@ -101,7 +101,7 @@ final class WallpaperInspectorView: NSView {
 
         actionStack.orientation = .vertical
         actionStack.alignment = .leading
-        actionStack.spacing = 6
+        actionStack.spacing = 8
         actionStack.translatesAutoresizingMaskIntoConstraints = false
 
         metaStack.orientation = .vertical
@@ -127,9 +127,11 @@ final class WallpaperInspectorView: NSView {
             ],
             spacing: Theme.Spacing.medium
         )
-        content.setCustomSpacing(10, after: header)
+        content.setCustomSpacing(8, after: header)
         content.setCustomSpacing(8, after: titleBlock)
         content.setCustomSpacing(8, after: statusRow)
+        content.setCustomSpacing(16, after: actionStack)
+        content.setCustomSpacing(10, after: metaStack)
 
         for wide in [header, preview, titleBlock, actionStack, metaStack] {
             wide.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
@@ -179,6 +181,7 @@ final class WallpaperInspectorView: NSView {
         guard let pack else {
             titleLabel.stringValue = "No wallpaper selected"
             authorLabel.stringValue = "Choose a wallpaper to inspect it."
+            authorLabel.isHidden = false
             typeBadge.isHidden = true
             activeBadge.isHidden = true
             reasonLabel.isHidden = true
@@ -205,10 +208,14 @@ final class WallpaperInspectorView: NSView {
 
         titleLabel.stringValue = pack.info.title
 
+        // No author line when the pack does not name one: the type badge above
+        // the title already says "Video", "Web" or similar.
         if let author = pack.info.author, !author.isEmpty {
             authorLabel.stringValue = "by \(author)"
+            authorLabel.isHidden = false
         } else {
-            authorLabel.stringValue = pack.info.type.displayName
+            authorLabel.stringValue = ""
+            authorLabel.isHidden = true
         }
 
         typeBadge.isHidden = false
@@ -407,7 +414,12 @@ final class LivePreviewView: NSView {
         playButton.translatesAutoresizingMaskIntoConstraints = false
         playButton.target = self
         playButton.action = #selector(toggleTapped)
-        playButton.heightAnchor.constraint(equalToConstant: 26).isActive = true
+        // Fixed size: the label flips between "Preview" and "Pause", and a
+        // width that follows the current title makes the pill jump on click.
+        NSLayoutConstraint.activate([
+            playButton.widthAnchor.constraint(equalToConstant: 92),
+            playButton.heightAnchor.constraint(equalToConstant: 26),
+        ])
         addSubview(playButton)
 
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false

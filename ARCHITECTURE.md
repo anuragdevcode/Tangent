@@ -75,7 +75,7 @@ crashing window manager.
 | `UI/LibraryPages.swift` | Displays, Automation and About pages |
 | `UI/WallpaperCardView.swift` | 16:10 gallery card, hover lift, video preview, context menu |
 | `UI/WallpaperInspectorView.swift` | inspector: preview, details and actions |
-| `UI/MenuBarPopoverController.swift` | status-item popover |
+| `UI/MenuBarPopoverController.swift` | fixed 340 pt status-item popover: preview, actions, displays, switches, footer |
 | `UI/AppModel.swift` | `AppSnapshot` / `AppActions` interface between UI and shell |
 | `UI/Theme.swift` | colors, type scale, spacing, radii and animation tokens |
 | `UI/Components.swift` | themed surfaces, buttons, badges, labels and shared views |
@@ -228,6 +228,10 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 - **Explicit apply.** Gallery selection never changes the wallpaper by itself.
 - **One property copy per pack.** Simpler than per-display copies; documented as
   a limitation.
+- **A fixed-width popover.** `NSPopover` sizes itself from its content, so the
+  content view pins a required 340 pt width, the preview image gives up its
+  intrinsic size first, and the height is measured from the content stack.
+  Artwork and long display names therefore never resize the surface.
 - **Format constants in one file.** `PackFormat` is the only place on-disk and
   page-level format names appear.
 
@@ -246,7 +250,7 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 | `--probe-mpv <file>` | decodes through libmpv and reports codec, size, frames, errors |
 | `--report-frames <seconds>` | counts frames rendered by the desktop-level window |
 | `--hotkey-status` | registers all bindings and reports status without saving |
-| `--snapshot-library` / `--snapshot-properties` / `--snapshot-settings` | in-process PNG capture, no Screen Recording permission |
+| `--snapshot-library` / `--snapshot-properties` / `--snapshot-settings` / `--snapshot-popover` | in-process PNG capture, no Screen Recording permission |
 | `--selftest` | architecture, screens, window levels, library path |
 
 ## Roadmap

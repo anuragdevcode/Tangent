@@ -14,8 +14,6 @@ final class MenuBarPopoverController: NSViewController {
     private var targets: [ActionTarget] = []
 
     private let preview = PopoverPreviewView()
-    private let typeBadge = BadgeView()
-    private let detailLabel = makeLabel("", font: Theme.tiny, color: .tertiaryLabelColor)
     private let statePill = StatusPillView(text: "Off", tint: .secondaryLabelColor)
     private let playButton = HoverButton("Play", symbol: "play.fill", style: .accent)
     private let nextButton = IconButton(
@@ -31,6 +29,8 @@ final class MenuBarPopoverController: NSViewController {
         toolTip: "Wallpaper Properties"
     )
     private let displaysStack = NSStackView()
+    private var widthConstraint: NSLayoutConstraint!
+    private var contentStack: NSStackView!
     private let pauseSwitch = NSSwitch()
     private let muteSwitch = NSSwitch()
     private var pauseRow: SettingsRow!
@@ -49,7 +49,8 @@ final class MenuBarPopoverController: NSViewController {
     override func loadView() {
         let root = VisualEffectView(material: .popover, blending: .behindWindow)
         root.translatesAutoresizingMaskIntoConstraints = false
-        root.widthAnchor.constraint(equalToConstant: 340).isActive = true
+        widthConstraint = root.widthAnchor.constraint(equalToConstant: 340)
+        widthConstraint.isActive = true
         view = root
 
         let header = hstack(
@@ -65,11 +66,6 @@ final class MenuBarPopoverController: NSViewController {
 
         preview.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(preview)
-
-        typeBadge.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.lineBreakMode = .byTruncatingTail
-        let infoRow = hstack([typeBadge, flexibleSpacer(), detailLabel], spacing: 6)
 
         playButton.target = self
         playButton.action = #selector(togglePause)
@@ -112,15 +108,15 @@ final class MenuBarPopoverController: NSViewController {
         pauseRow = SettingsRow(
             symbol: "pause.circle",
             title: "Pause Wallpaper",
-            subtitle: "Stop rendering until you resume.",
+            subtitle: nil,
             trailing: pauseSwitch
         )
         let muteRow = SettingsRow(
             symbol: "speaker.slash",
             title: "Mute Audio",
-            subtitle: "Applies to every display.",
             trailing: muteSwitch
         )
+        muteRow.toolTip = "Mute audio on every display."
         let quickCard = GroupedSection(title: nil, rows: [pauseRow, HairlineView(), muteRow])
 
         let footerSeparator = HairlineView()
@@ -162,12 +158,9 @@ final class MenuBarPopoverController: NSViewController {
             [
                 header,
                 preview,
-                infoRow,
                 actionRow,
-                spacing(4),
                 displaysHeader,
                 displayCard,
-                spacing(4),
                 quickCard,
                 footerSeparator,
                 footer,
@@ -175,13 +168,14 @@ final class MenuBarPopoverController: NSViewController {
             spacing: Theme.Spacing.small
         )
         stack.setCustomSpacing(12, after: header)
-        stack.setCustomSpacing(7, after: preview)
-        stack.setCustomSpacing(10, after: infoRow)
-        stack.setCustomSpacing(14, after: actionRow)
+        stack.setCustomSpacing(10, after: preview)
+        stack.setCustomSpacing(18, after: actionRow)
         stack.setCustomSpacing(6, after: displaysHeader)
-        stack.setCustomSpacing(14, after: displayCard)
-        stack.setCustomSpacing(12, after: footerSeparator)
+        stack.setCustomSpacing(16, after: displayCard)
+        stack.setCustomSpacing(14, after: quickCard)
+        stack.setCustomSpacing(8, after: footerSeparator)
 
+        contentStack = stack
         root.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
@@ -191,7 +185,6 @@ final class MenuBarPopoverController: NSViewController {
 
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
             preview.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            infoRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actionRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             displaysHeader.widthAnchor.constraint(equalTo: stack.widthAnchor),
             displayCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -244,6 +237,14 @@ final class MenuBarPopoverController: NSViewController {
         }
         reload()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // NSPopover lowers the content view's width constraint while it sizes
+        // the window, which lets a long display name widen the popover. Put the
+        // fixed width back and measure the content at that width.
+        widthConstraint.priority = .required
+        view.layoutSubtreeIfNeeded()
+        let size = NSSize(width: 340, height: popoverHeight())
+        popover.contentSize = size
+        preferredContentSize = size
         popover.contentViewController?.view.window?.makeKey()
     }
 
@@ -255,6 +256,7 @@ final class MenuBarPopoverController: NSViewController {
 
     func reload() {
         _ = view
+        widthConstraint.priority = .required
         snapshot = actions.snapshot()
         updateHeader()
         updatePreview()
@@ -262,9 +264,14 @@ final class MenuBarPopoverController: NSViewController {
         updateSwitches()
         updateActions()
         view.layoutSubtreeIfNeeded()
-        let size = NSSize(width: 340, height: ceil(view.fittingSize.height))
+        let size = NSSize(width: 340, height: popoverHeight())
         preferredContentSize = size
         popover.contentSize = size
+    }
+
+    /// Height that fits the stack plus the popover's own insets.
+    private func popoverHeight() -> CGFloat {
+        ceil(contentStack.fittingSize.height + 16 + 12)
     }
 
     // MARK: - Refresh
@@ -280,28 +287,7 @@ final class MenuBarPopoverController: NSViewController {
     }
 
     private func updatePreview() {
-        guard let config = snapshot.defaultConfig else {
-            preview.set(pack: nil)
-            typeBadge.isHidden = true
-            detailLabel.stringValue = ""
-            return
-        }
-
-        preview.set(pack: snapshot.currentPack, fallback: config)
-        typeBadge.isHidden = false
-        typeBadge.configure(
-            text: config.type.displayName.uppercased(),
-            symbol: config.type.glyph,
-            tint: .white,
-            background: NSColor.black.withAlphaComponent(0.55)
-        )
-
-        let displays = snapshot.displays.filter { !$0.isDisabled }.count
-        var parts = [Format.count(displays, singular: "display")]
-        if snapshot.isPaused {
-            parts.append("paused")
-        }
-        detailLabel.stringValue = parts.joined(separator: " · ")
+        preview.set(pack: snapshot.currentPack, fallback: snapshot.defaultConfig)
     }
 
     private func updateActions() {
@@ -348,7 +334,10 @@ final class MenuBarPopoverController: NSViewController {
         }
 
         for display in snapshot.displays.prefix(4) {
-            let row = DisplayPopoverRow(display: display)
+            let row = DisplayPopoverRow(
+                display: display,
+                defaultTitle: snapshot.defaultConfig?.title
+            )
             row.target = self
             row.action = #selector(openDisplays)
             row.translatesAutoresizingMaskIntoConstraints = false
@@ -393,6 +382,12 @@ private final class PopoverPreviewView: NSView {
 
         imageView.imageScaling = .scaleAxesIndependently
         imageView.translatesAutoresizingMaskIntoConstraints = false
+        // An image view reports the image's pixel size as its intrinsic size.
+        // Left at the default compression resistance, a 512 pt thumbnail makes
+        // NSPopover widen itself to match. The preview is 340 pt wide by design,
+        // so the image gives up its intrinsic width first.
+        imageView.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        imageView.setContentCompressionResistancePriority(.init(1), for: .vertical)
         addSubview(imageView)
 
         scrim.colors = [
@@ -502,7 +497,7 @@ private final class DisplayPopoverRow: NSButton {
     private let stateLabel = NSTextField(labelWithString: "")
     private let badge = BadgeView()
 
-    init(display: DisplaySummary) {
+    init(display: DisplaySummary, defaultTitle: String?) {
         super.init(frame: .zero)
         isBordered = false
         bezelStyle = .regularSquare
@@ -520,11 +515,16 @@ private final class DisplayPopoverRow: NSButton {
         icon.contentTintColor = display.isDisabled ? .tertiaryLabelColor : Theme.accent
         icon.translatesAutoresizingMaskIntoConstraints = false
 
-        name.stringValue = display.label
+        // The laptop icon already says which display is the main one, so the
+        // row drops the "(Main)" suffix and keeps the full name readable.
+        name.stringValue = display.label.replacingOccurrences(of: " (Main)", with: "")
         name.font = Theme.caption
         name.textColor = display.isDisabled ? .secondaryLabelColor : .labelColor
         name.lineBreakMode = .byTruncatingTail
         name.translatesAutoresizingMaskIntoConstraints = false
+        // Long display and wallpaper names must truncate, not widen the
+        // popover: it is a fixed 340 pt surface.
+        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         stateLabel.stringValue = display.state
         stateLabel.font = Theme.tiny
@@ -532,6 +532,7 @@ private final class DisplayPopoverRow: NSButton {
         stateLabel.alignment = .right
         stateLabel.lineBreakMode = .byTruncatingTail
         stateLabel.translatesAutoresizingMaskIntoConstraints = false
+        stateLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let trailing: NSView
         if display.isDisabled {
@@ -540,6 +541,10 @@ private final class DisplayPopoverRow: NSButton {
         } else if display.isPinned {
             badge.configure(text: "Pinned", tint: .systemBlue)
             trailing = badge
+        } else if display.config?.title == defaultTitle {
+            // Same wallpaper as the hero preview above: no need to repeat it.
+            stateLabel.stringValue = ""
+            trailing = stateLabel
         } else {
             trailing = stateLabel
         }

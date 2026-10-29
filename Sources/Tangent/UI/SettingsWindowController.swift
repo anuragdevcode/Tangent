@@ -309,8 +309,20 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         statusTitle = makeLabel("Rendering live", font: Theme.cardTitle)
         statusDetail = makeWrappingLabel("", font: Theme.caption, color: .secondaryLabelColor)
         let statusText = vstack([statusTitle, statusDetail], spacing: 2)
-        let statusRow = hstack([statusPill, statusText], spacing: 10)
-        statusCard.pin(statusRow, insets: NSEdgeInsets(top: 13, left: 13, bottom: 13, right: 13))
+        // The pill keeps its capsule width; the text takes the rest of the card.
+        // A stack here would hand the extra width to whichever view it liked.
+        statusPill.translatesAutoresizingMaskIntoConstraints = false
+        statusText.translatesAutoresizingMaskIntoConstraints = false
+        statusCard.addSubview(statusPill)
+        statusCard.addSubview(statusText)
+        NSLayoutConstraint.activate([
+            statusText.leadingAnchor.constraint(equalTo: statusCard.leadingAnchor, constant: 13),
+            statusText.trailingAnchor.constraint(equalTo: statusPill.leadingAnchor, constant: -10),
+            statusText.topAnchor.constraint(equalTo: statusCard.topAnchor, constant: 13),
+            statusText.bottomAnchor.constraint(equalTo: statusCard.bottomAnchor, constant: -13),
+            statusPill.trailingAnchor.constraint(equalTo: statusCard.trailingAnchor, constant: -13),
+            statusPill.centerYAnchor.constraint(equalTo: statusText.centerYAnchor),
+        ])
 
         let rules = GroupedSection(
             title: "Playback Rules",

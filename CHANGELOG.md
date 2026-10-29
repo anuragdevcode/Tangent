@@ -30,10 +30,18 @@ semantic versioning once it reaches 1.0.
 - Persisted custom bindings (`tangent.hotkeys.bindings`) with sanitization of
   corrupt or conflicting stored values on launch.
 - `--hotkey-status` reports current bindings, defaults and customised actions.
+- `--snapshot-popover` renders the menu bar popover to a PNG for layout checks.
 - Menu-bar shortcut labels reflect live bindings and mark customised actions.
 
 ### Changed
 
+- The menu bar popover is one compact 340 pt column: a hero preview, a single
+  action row, one display row and the pause/mute switches. The type badge, the
+  display-count line and the wallpaper title repeated inside a display row are
+  gone, and the footer sits closer to the quick switches.
+- Inspector actions share a 28 pt height and a consistent 8 pt stack, with
+  clearer separation before the details table. Packs without an author no longer
+  repeat their type under the title.
 - The gallery, inspector, Settings and About windows share one theme: solid
   canvas and pane fills, 1 pt inner borders, continuous radii, SF Symbols and
   spring hover motion. Window-wide vibrancy is gone; only the sidebar samples
@@ -55,6 +63,14 @@ semantic versioning once it reaches 1.0.
 - The sidebar search placeholder no longer disappears when a page takes focus.
 - The automation status card says **No wallpaper set** instead of reporting a
   pause reason when nothing is applied.
+- The inspector's **Preview** pill keeps its `92×26` frame when it flips to
+  **Pause**; the label no longer changes the control's width.
+- The menu bar popover no longer widens to 512 pt when a thumbnail loads or a
+  display name contains `(Main)`.
+- Status capsules keep their intrinsic width in the Settings playback card and
+  the Automation page instead of stretching across the row.
+- The library opens with the gallery focused, so the search field no longer
+  shows a stray caret at launch.
 
 ## [0.4.0] — 2026-10-27
 

@@ -550,19 +550,24 @@ final class StatusPillView: ThemedView {
 
     private let dot = NSView()
     private let label = NSTextField(labelWithString: "")
+    private var stack: NSStackView!
     private var tint: NSColor = .secondaryLabelColor
 
     init(text: String = "", tint: NSColor = .secondaryLabelColor, symbol: String? = nil) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerCurve = .continuous
+        // A capsule is a label, not a bar: it must keep its intrinsic width
+        // when a stack offers it extra space next to text.
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
         dot.wantsLayer = true
         dot.translatesAutoresizingMaskIntoConstraints = false
 
         label.font = Theme.label
         label.maximumNumberOfLines = 1
 
-        let stack = hstack([dot, label], spacing: 6)
+        stack = hstack([dot, label], spacing: 6)
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
@@ -581,9 +586,17 @@ final class StatusPillView: ThemedView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
 
+    /// A capsule is as wide as its label. Without an intrinsic size a plain
+    /// `NSView` cannot hug its content, so a stack hands it the extra width.
+    override var intrinsicContentSize: NSSize {
+        let content = stack.fittingSize
+        return NSSize(width: content.width + 17, height: content.height + 8)
+    }
+
     func configure(text: String, tint: NSColor) {
         self.tint = tint
         label.stringValue = text
+        invalidateIntrinsicContentSize()
         label.textColor = tint
         dot.layer?.backgroundColor = tint.cgColor
         layer?.backgroundColor = tint.withAlphaComponent(0.13).cgColor

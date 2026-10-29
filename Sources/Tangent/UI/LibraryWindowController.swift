@@ -111,6 +111,10 @@ final class LibraryWindowController: NSWindowController,
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        // Start on the grid, like Photos: the search field only takes focus
+        // when it is clicked, so it does not greet the user with a caret in an
+        // empty field.
+        window?.makeFirstResponder(collectionView)
     }
 
     /// Scripted snapshot helper (`--gallery-search`, `--gallery-select`).
