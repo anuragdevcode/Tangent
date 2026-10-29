@@ -35,6 +35,7 @@ semantic versioning once it reaches 1.0.
 
 ### Changed
 
+- Support links open the project's Ko-fi page instead of Buy Me a Coffee.
 - The menu bar popover is one compact 340 pt column: a hero preview, a single
   action row, one display row and the pause/mute switches. The type badge, the
   display-count line and the wallpaper title repeated inside a display row are

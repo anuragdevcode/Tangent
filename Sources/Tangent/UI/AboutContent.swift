@@ -69,7 +69,7 @@ enum AboutContent {
 
     static func primaryActions() -> NSView {
         let support = LinkButton(
-            "Buy Me a Coffee",
+            "Support on Ko-fi",
             symbol: "cup.and.saucer.fill",
             style: .accent,
             url: TangentLinks.support
@@ -150,29 +150,29 @@ enum AboutContent {
         let title = makeLabel("Support Tangent", font: Theme.cardTitle)
         let message = makeWrappingLabel(
             compact
-                ? "Free and open source. If Tangent improves your desktop, you can buy the developer a coffee."
+                ? "Free and open source. If Tangent improves your desktop, you can support the developer on Ko-fi."
                 : "Tangent is free and open source. If it makes your desktop better, you can support "
-                    + "development with a coffee — it directly funds new backends and polish.",
+                    + "development on Ko-fi — it directly funds new backends and polish.",
             font: Theme.caption,
             color: .secondaryLabelColor
         )
         let text = vstack([title, message], spacing: 3)
 
-        let coffee = LinkButton(
-            "Buy Me a Coffee",
+        let supportLink = LinkButton(
+            "Support on Ko-fi",
             symbol: "cup.and.saucer.fill",
             style: .accent,
             url: TangentLinks.support
         )
-        coffee.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        supportLink.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
         let content: NSView
         if compact {
-            let row = hstack([heart, text, inflexibleSpacer(), coffee], spacing: 12)
+            let row = hstack([heart, text, inflexibleSpacer(), supportLink], spacing: 12)
             content = row
         } else {
             let row = hstack([heart, text], spacing: 12)
-            content = vstack([row, coffee], spacing: 12)
+            content = vstack([row, supportLink], spacing: 12)
         }
 
         card.pin(content, insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))

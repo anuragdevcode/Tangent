@@ -8,7 +8,7 @@ enum TangentLinks {
     static let repository = URL(string: "https://github.com/anuragdevcode/Tangent")!
     static let issues = URL(string: "https://github.com/anuragdevcode/Tangent/issues")!
     static let license = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
-    static let support = URL(string: "https://www.buymeacoffee.com/anuragdevcode")!
+    static let support = URL(string: "https://ko-fi.com/anuragcodes")!
 }
 
 // MARK: - Navigation

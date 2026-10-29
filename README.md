@@ -319,7 +319,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
 | Compatibility suite (`--test`) | `PASS — 167 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 64cca7d760493132a864d135a081bf59a0ae16112b9bed5efe86753a12f4f612`, arm64 |
+| Binary | `sha256 20197e351155895d20cecf479fc5cb8767e2f35594121c381fea3a855d4a0a6e`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
