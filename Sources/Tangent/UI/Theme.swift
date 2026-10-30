@@ -94,6 +94,8 @@ enum Theme {
     )
 
     static let accent = NSColor.controlAccentColor
+    /// Ko-fi's brand blue, used only by the support button.
+    static let koFi = NSColor(srgbRed: 0.161, green: 0.671, blue: 0.878, alpha: 1)
     static let warning = NSColor.systemOrange
     static let positive = NSColor.systemGreen
     static let secondaryText = NSColor.secondaryLabelColor

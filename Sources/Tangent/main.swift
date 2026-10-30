@@ -1,4 +1,5 @@
 import AppKit
+import WebKit
 
 // MARK: - Diagnostics
 
@@ -208,6 +209,90 @@ private func runHotkeyProbe() -> Never {
     exit(ok ? 0 : 1)
 }
 
+// MARK: - Ko-fi probe
+
+/// Proves the real support window can load the Ko-fi page, and reports its
+/// title, login state and visible text. An optional path captures the page.
+private func runKoFiProbe(snapshotPath: String?) -> Never {
+    let application = NSApplication.shared
+    application.setActivationPolicy(.accessory)
+
+    let controller = KoFiSupportWindowController.makeForProbe()
+    var report: [String: Any] = [
+        "ok": false,
+        "url": KoFi.pageURL.absoluteString,
+    ]
+    var evaluated = false
+    var captured = snapshotPath == nil
+
+    controller.onFailure = { error in
+        guard !evaluated else { return }
+        report["error"] = error.localizedDescription
+        evaluated = true
+        captured = true
+    }
+
+    controller.onLoad = {
+        controller.webView.evaluateJavaScript("""
+        (() => {
+          const text = (document.body && document.body.innerText) || '';
+          return JSON.stringify({
+            title: document.title || '',
+            textLength: text.length,
+            mentionsKoFi: /ko-fi/i.test(text),
+            mentionsSupport: /support|tip|coffee|buy/i.test(text),
+            loggedIn: /log out/i.test(text),
+            bodyPreview: text.replace(/\\s+/g, ' ').trim().slice(0, 160)
+          });
+        })()
+        """) { result, error in
+            if let json = result as? String,
+               let data = json.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                report["ok"] = true
+                report.merge(parsed) { _, new in new }
+                if let window = controller.window {
+                    report["window"] = NSStringFromRect(window.frame)
+                }
+            } else if let error {
+                report["error"] = error.localizedDescription
+            } else {
+                report["error"] = "no page report"
+            }
+            evaluated = true
+
+            guard let snapshotPath else { return }
+            let url = URL(fileURLWithPath: snapshotPath)
+            controller.webView.takeSnapshot(with: nil) { image, snapshotError in
+                if let tiff = image?.tiffRepresentation,
+                   let rep = NSBitmapImageRep(data: tiff),
+                   let png = rep.representation(using: .png, properties: [:]) {
+                    try? png.write(to: url)
+                    report["snapshot"] = url.path
+                } else if let snapshotError {
+                    report["snapshotError"] = snapshotError.localizedDescription
+                }
+                captured = true
+            }
+        }
+    }
+
+    controller.present()
+
+    let deadline = Date().addingTimeInterval(30)
+    while !(evaluated && captured) && Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    }
+    if !evaluated, report["error"] == nil {
+        report["error"] = "timed out waiting for \(KoFi.pageURL.absoluteString)"
+    }
+
+    withExtendedLifetime(controller) {
+        printJSON(report)
+    }
+    exit(report["ok"] as? Bool == true ? 0 : 1)
+}
+
 // MARK: - Entry point
 
 let arguments = CommandLine.arguments
@@ -218,6 +303,13 @@ if let flagIndex = arguments.firstIndex(of: "--probe-bridge"), arguments.count >
 
 if let flagIndex = arguments.firstIndex(of: "--probe-mpv"), arguments.count > flagIndex + 1 {
     runMPVProbe(path: arguments[flagIndex + 1])
+}
+
+if let flagIndex = arguments.firstIndex(of: "--probe-kofi") {
+    let snapshot = arguments.count > flagIndex + 1 && !arguments[flagIndex + 1].hasPrefix("--")
+        ? arguments[flagIndex + 1]
+        : nil
+    runKoFiProbe(snapshotPath: snapshot)
 }
 
 if arguments.contains("--hotkey-status") {

@@ -31,11 +31,19 @@ semantic versioning once it reaches 1.0.
   corrupt or conflicting stored values on launch.
 - `--hotkey-status` reports current bindings, defaults and customised actions.
 - `--snapshot-popover` renders the menu bar popover to a PNG for layout checks.
+- In-app Ko-fi support: a `WKWebView` window hosts the real
+  `ko-fi.com/anuragcodes` page, with a spinner, an offline retry state and
+  **Open in Browser**. Ko-fi's JavaScript button and iframe embeds are not used
+  because they only open the profile page or render blank outside ko-fi.com.
+- `--probe-kofi` opens that window in a fresh session and reports the page
+  title, login state and visible text.
 - Menu-bar shortcut labels reflect live bindings and mark customised actions.
 
 ### Changed
 
-- Support links open the project's Ko-fi page instead of Buy Me a Coffee.
+- Support moved in-app: the About actions, support card and popover heart open
+  the project's Ko-fi page in a native window instead of a Buy Me a Coffee tab.
+  The button carries Ko-fi's brand colour rather than the app accent.
 - The menu bar popover is one compact 340 pt column: a hero preview, a single
   action row, one display row and the pause/mute switches. The type badge, the
   display-count line and the wallpaper title repeated inside a display row are
@@ -72,6 +80,8 @@ semantic versioning once it reaches 1.0.
   the Automation page instead of stretching across the row.
 - The library opens with the gallery focused, so the search field no longer
   shows a stray caret at launch.
+- The compatibility suite scans a scratch root instead of the user's real
+  library, so a locally installed wallpaper can no longer change its counts.
 
 ## [0.4.0] — 2026-10-27
 

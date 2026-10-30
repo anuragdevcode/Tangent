@@ -68,12 +68,7 @@ enum AboutContent {
     }
 
     static func primaryActions() -> NSView {
-        let support = LinkButton(
-            "Support on Ko-fi",
-            symbol: "cup.and.saucer.fill",
-            style: .accent,
-            url: TangentLinks.support
-        )
+        let support = KoFiSupportButton()
         let github = LinkButton(
             "View on GitHub",
             symbol: "arrow.up.right.square",
@@ -158,13 +153,7 @@ enum AboutContent {
         )
         let text = vstack([title, message], spacing: 3)
 
-        let supportLink = LinkButton(
-            "Support on Ko-fi",
-            symbol: "cup.and.saucer.fill",
-            style: .accent,
-            url: TangentLinks.support
-        )
-        supportLink.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        let supportLink = KoFiSupportButton()
 
         let content: NSView
         if compact {

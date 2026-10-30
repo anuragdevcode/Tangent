@@ -80,6 +80,7 @@ crashing window manager.
 | `UI/Theme.swift` | colors, type scale, spacing, radii and animation tokens |
 | `UI/Components.swift` | themed surfaces, buttons, badges, labels and shared views |
 | `UI/AboutContent.swift` | shared About copy and controls |
+| `UI/KoFiSupport.swift` | Ko-fi-branded support button and the in-app `WKWebView` tip window |
 | `UI/AboutWindowController.swift` | standalone About window |
 | `UI/GalleryModel.swift` | search, filters, cycling |
 | `UI/ControlPanelController.swift` | property editor |
@@ -237,7 +238,7 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 167 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 171 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling, and
 shortcut validation/persistence.
@@ -248,6 +249,7 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 |---|---|
 | `--probe-bridge <folder>` | loads a page and reports the property payload it received |
 | `--probe-mpv <file>` | decodes through libmpv and reports codec, size, frames, errors |
+| `--probe-kofi` | opens the real support window in a fresh session and reports title, login state and page text |
 | `--report-frames <seconds>` | counts frames rendered by the desktop-level window |
 | `--hotkey-status` | registers all bindings and reports status without saving |
 | `--snapshot-library` / `--snapshot-properties` / `--snapshot-settings` / `--snapshot-popover` | in-process PNG capture, no Screen Recording permission |

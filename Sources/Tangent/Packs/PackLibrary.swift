@@ -24,7 +24,9 @@ final class PackLibrary {
         return support.appendingPathComponent("Tangent/Library", isDirectory: true)
     }
 
-    init(defaults: UserDefaults = .standard) {
+    /// `fallbackRoot` is only used when the store has no roots yet. Tests pass a
+    /// scratch directory so they never scan the user's real library.
+    init(defaults: UserDefaults = .standard, fallbackRoot: URL = PackLibrary.defaultRoot) {
         self.defaults = defaults
         let rootPaths = defaults.stringArray(forKey: rootsKey) ?? []
         let entryPaths = defaults.stringArray(forKey: entriesKey) ?? []
@@ -33,11 +35,11 @@ final class PackLibrary {
         self.hidden = Set(defaults.stringArray(forKey: hiddenKey) ?? [])
 
         if roots.isEmpty {
-            roots = [Self.defaultRoot]
+            roots = [fallbackRoot]
             persist()
         }
         try? FileManager.default.createDirectory(
-            at: Self.defaultRoot,
+            at: fallbackRoot,
             withIntermediateDirectories: true
         )
     }

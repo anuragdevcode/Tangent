@@ -191,7 +191,11 @@ enum SelfTests {
         let suiteName = "tangent.tests"
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
         let defaults = UserDefaults(suiteName: suiteName)!
-        let library = PackLibrary(defaults: defaults)
+        // Keep the scan off the user's real library; a local wallpaper there
+        // would otherwise change every count in this section.
+        let scratchRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tangent-test-library", isDirectory: true)
+        let library = PackLibrary(defaults: defaults, fallbackRoot: scratchRoot)
         library.addRoot(fixturesRoot.appendingPathComponent("library"))
         let packs = library.scan()
 
@@ -556,6 +560,16 @@ enum SelfTests {
         expect(NSColor(hexColor: "#112233")?.hexColor == "#112233", "hex colour round-trips")
         expect(NSColor(hexColor: "#abc")?.hexColor == "#AABBCC", "short hex expands")
         expect(NSColor(hexColor: "not-a-colour") == nil, "invalid hex is rejected")
+
+        // MARK: Ko-fi support
+
+        print("Ko-fi support")
+        expect(KoFi.pageURL == TangentLinks.support,
+               "support button and support window share one URL")
+        expect(KoFi.pageURL.absoluteString == "https://ko-fi.com/anuragcodes",
+               "support URL points at the creator's Ko-fi page")
+        expect(KoFi.pageURL.host == "ko-fi.com", "support URL uses the ko-fi.com host")
+        expect(Theme.koFi != Theme.accent, "Ko-fi button keeps its own brand colour")
 
         // MARK: Summary
 

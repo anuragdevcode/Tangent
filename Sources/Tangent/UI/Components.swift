@@ -299,6 +299,9 @@ class HoverButton: NSButton {
         /// Sits on top of wallpaper artwork, where the window's own control
         /// fill would disappear into bright frames.
         case overlay
+        /// Ko-fi's own button colour, so support reads as Ko-fi rather than as
+        /// the app's accent.
+        case koFi
     }
 
     var style: Style = .filled {
@@ -420,6 +423,11 @@ class HoverButton: NSButton {
             foreground = .tertiaryLabelColor
         case .overlay:
             background = NSColor.black.withAlphaComponent(isHovered ? 0.72 : 0.58)
+            foreground = .white
+        case .koFi:
+            background = isHovered
+                ? Theme.koFi.blended(withFraction: 0.14, of: .white) ?? Theme.koFi
+                : Theme.koFi
             foreground = .white
         }
 

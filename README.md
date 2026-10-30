@@ -207,8 +207,8 @@ combination, the rest still work and Settings names the unavailable action.
 - **Playback** — the three pause rules above
 - **Shortcuts** — enable/disable global shortcuts, click-to-record rebinding
   with conflict checks, reset-all, and registration status
-- **About** — version, bundle id, architecture, minimum macOS, video backends
-  and whether libmpv is bundled or external
+- **About** — version, bundle id, architecture, minimum macOS, video backends,
+  whether libmpv is bundled or external, and an in-app Ko-fi tip window
 
 ## Scripted use
 
@@ -235,6 +235,10 @@ $BIN --probe-bridge Tests/Fixtures/library/landing-web
 
 # Decode and render VP9/WebM/AV1 through libmpv; prints codec, size and frame count
 $BIN --probe-mpv Tests/Fixtures/media/vp9.webm
+
+# Open the real support window in a fresh session and report its page state;
+# an optional path also writes a snapshot of the rendered page
+$BIN --probe-kofi /tmp/kofi.png
 
 # Point at a specific libmpv build (also useful to test the "missing" path)
 TANGENT_LIBMPV=/opt/homebrew/opt/mpv/lib/libmpv.2.dylib $BIN --probe-mpv loop.webm
@@ -298,9 +302,9 @@ Sources/Tangent/
   Packs/                     pack format, metadata/property parsing, library
                              scanning, thumbnails, JSON tree, property store
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
-                             popover, Settings, About, control panel, theme and
-                             shared components
-  Diagnostics/SelfTests.swift     167-check compatibility suite
+                             popover, Settings, About, in-app Ko-fi support,
+                             control panel, theme and shared components
+  Diagnostics/SelfTests.swift     171-check compatibility suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
@@ -317,9 +321,9 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 167 checks` |
+| Compatibility suite (`--test`) | `PASS — 171 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 20197e351155895d20cecf479fc5cb8767e2f35594121c381fea3a855d4a0a6e`, arm64 |
+| Binary | `sha256 4e4fd8230caf08a8a0922803fcc348063b83ffdd0d19b5f14dcd91d7b83e5b53`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
@@ -331,6 +335,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Gallery empty state (`--gallery-search zzzz`) | "No Wallpapers Match" over an empty grid, with a **Clear Search** action |
 | Gallery/hotkey unit tests | 50 assertions: search across title/author/summary/tags/folder, five filters, combined search+filter, wrapping next/previous cycling that skips unsupported packs, shortcut uniqueness/dispatch, rebinding validation, persistence and reset |
 | Global shortcuts (`--hotkey-status`) | all 4 default bindings register (handler status 0) while the saved preference stays off |
+| Ko-fi support window (`--probe-kofi`) | a fresh session loads `https://ko-fi.com/anuragcodes` in the real 460×752 window: title `Buy Anurag Singh a Coffee`, visitor view (not logged in), page text present |
 | Custom binding registration | a throwaway suite rebinds Open Library to `⌃⌥⇧K`; all 4 actions register, 0 failures |
 | Settings panes (`--snapshot-settings --settings-pane 0..3`) | General, Playback, Shortcuts (recorder buttons + reset) and About all render in dark mode |
 | Control panel (`--snapshot-properties`) | all 9 fixture controls rendered; slider/checkbox/dropdown/file/colour values correct |

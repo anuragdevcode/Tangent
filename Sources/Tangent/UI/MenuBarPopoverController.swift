@@ -355,7 +355,10 @@ final class MenuBarPopoverController: NSViewController {
     @objc private func openLibrary() { close(); actions.openLibrary() }
     @objc private func openDisplays() { close(); actions.openLibrarySection(.displays) }
     @objc private func openSettings() { close(); actions.openSettings() }
-    @objc private func openSupport() { NSWorkspace.shared.open(TangentLinks.support) }
+    @objc private func openSupport() {
+        close()
+        KoFiSupportWindowController.shared.present()
+    }
     @objc private func quit() { actions.quit() }
 }
 
