@@ -4,6 +4,48 @@ All notable changes to Tangent are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 semantic versioning once it reaches 1.0.
 
+## [Unreleased]
+
+### Added
+
+- GitHub-powered update checking against
+  `github.com/anuragdevcode/Tangent`: a conditional request to the latest-release
+  API, a 24-hour cache with ETags, semantic-version comparison including
+  prereleases, draft/prerelease filtering for stable builds, and a deterministic
+  DMG choice (universal, matching architecture, single asset, then the release
+  page). Updates are never downloaded or installed automatically.
+- **Help & Community** in the menu bar with **Check for Updates…**, **Report an
+  Issue…**, **Community & Discussions** and **Star Tangent on GitHub**, plus a
+  subtle update indicator in the popover.
+- **About & Feedback**, shared by Settings, the standalone About window and the
+  library's About page: identity, version/build, macOS/hardware/architecture
+  details, a live update card, help routes and community links.
+- Privacy-first diagnostics for bug reports: version/build, macOS version,
+  hardware model, architecture and Rosetta status, with no serial number, Apple
+  ID, username, home path, IP address or file contents. A preview is shown
+  before the summary is copied; nothing is sent automatically.
+- A GitHub issue form at `.github/ISSUE_TEMPLATE/bug_report.yml`, with contact
+  links pointing at Discussions and the repository.
+- **Hide Desktop Icons** switches in the menu bar popover and under
+  **Automation ▸ Shortcuts**. Both reflect Finder's own `CreateDesktop`
+  preference and re-read it when their surface opens.
+
+### Changed
+
+- The app now directs update, issue, discussion and repository traffic through
+  one `GitHubRepo` configuration; there are no duplicate URL constants.
+- The About surface is now **About & Feedback**, and the same live page is used
+  in every window that shows it.
+- The popover carries a third quick row for desktop icons while keeping its
+  fixed 340 pt width.
+
+### Fixed
+
+- Desktop icons are changed through Finder's preference and a Finder relaunch
+  rather than a private API; a missing preference is treated as Finder's default
+  visible state, and read/write failures are shown inline instead of being
+  silently swallowed.
+
 ## [0.4.1] — 2026-10-29
 
 ### Added

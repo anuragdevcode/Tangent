@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var actions: AppActions!
     private let updates = UpdateChecker()
     private let feedback = FeedbackManager()
+    private let desktopIcons = DesktopIcons()
 
     /// Set from the command line for scripted use and verification.
     var initialConfig: WallpaperConfig?
@@ -67,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover = MenuBarPopoverController(actions: actions)
         engine.onChange = { [weak self] in self?.engineDidChange() }
         updates.onChange = { [weak self] in self?.updateStateDidChange() }
+        desktopIcons.onChange = { [weak self] in self?.desktopIconsDidChange() }
 
         playback.onPause = { [weak self] reason in self?.engine.pause(reason) }
         playback.onResume = { [weak self] reason in self?.engine.resume(reason) }
@@ -332,6 +334,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.settingsWindow?.reload()
             self.rebuildMenu()
         }
+        actions.setDesktopIconsHidden = { [weak self] hidden in
+            self?.desktopIcons.setHidden(hidden)
+        }
+        actions.refreshDesktopIcons = { [weak self] in
+            guard let self, !self.desktopIcons.isBusy else { return }
+            self.desktopIcons.refresh()
+        }
 
         actions.useDefaultForDisplay = { [weak self] id in
             self?.engine.useDefault(for: id)
@@ -394,6 +403,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshot.hotkeysEnabled = hotkeys.isEnabled
         snapshot.hotkeyStatus = hotkeys.statusDescription
         snapshot.statusDescription = engine.statusDescription
+        snapshot.desktopIconsState = desktopIcons.state
+        snapshot.desktopIconsBusy = desktopIcons.isBusy
         snapshot.updateState = updates.state
         snapshot.lastUpdateCheck = updates.lastChecked
         snapshot.activeConfigs = engine.activeConfigs
@@ -448,6 +459,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if popover?.isShown == true {
             popover.reload()
+        }
+    }
+
+    /// Mirrors Finder desktop-icon changes into the surfaces that expose the
+    /// toggle. The Automation page is rebuilt from the refreshed snapshot.
+    private func desktopIconsDidChange() {
+        if libraryWindow?.window?.isVisible == true {
+            libraryWindow?.refresh()
+        }
+        if popover?.isShown == true {
+            popover?.reload()
         }
     }
 

@@ -122,6 +122,11 @@ struct AppSnapshot {
     var hotkeyStatus = ""
     var statusDescription = "No wallpaper set"
 
+    /// Finder desktop icons, mirrored from `DesktopIcons`. The state is read
+    /// from Finder's own preference, not kept separately.
+    var desktopIconsState: DesktopIcons.State = .visible
+    var desktopIconsBusy = false
+
     /// GitHub release state, mirrored from `UpdateChecker` so every surface
     /// renders the same answer.
     var updateState: UpdateState = .idle
@@ -174,6 +179,8 @@ struct AppActions {
     var setMuted: (Bool) -> Void = { _ in }
     var setPolicy: (PlaybackMonitor.Policy) -> Void = { _ in }
     var setHotkeysEnabled: (Bool) -> Void = { _ in }
+    var setDesktopIconsHidden: (Bool) -> Void = { _ in }
+    var refreshDesktopIcons: () -> Void = {}
 
     // Displays
     var useDefaultForDisplay: (CGDirectDisplayID) -> Void = { _ in }

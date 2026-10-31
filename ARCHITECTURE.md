@@ -70,16 +70,22 @@ crashing window manager.
 | `Packs/WallpaperType.swift` | type names, support status, user-facing reasons |
 | `Playback/PlaybackMonitor.swift` | fullscreen / battery / lock detection |
 | `Hotkeys/HotkeyManager.swift` | Carbon hot keys, bindings, validation, persistence |
+| `Services/GitHubConfig.swift` | official repository URLs, bug-form template, validated HTTPS opening |
+| `Services/ReleaseModel.swift` | GitHub release decoders, semver, asset selection, update policy |
+| `Services/UpdateChecker.swift` | conditional release request, 24-hour schedule, cached state machine |
+| `Services/FeedbackManager.swift` | sysctl diagnostics, privacy summary, issue URL and clipboard flows |
+| `Services/DesktopIcons.swift` | Finder `CreateDesktop` preference, relaunch and injectable command store |
 | `UI/LibraryWindowController.swift` | library window: sidebar, gallery, inspector, section pages, window shortcuts |
 | `UI/LibraryModel.swift` | library entries, favorites, hidden packs, queries |
-| `UI/LibraryPages.swift` | Displays, Automation and About pages |
+| `UI/LibraryPages.swift` | Displays, Automation (rules, shortcuts, desktop icons) and About pages |
 | `UI/WallpaperCardView.swift` | 16:10 gallery card, hover lift, video preview, context menu |
 | `UI/WallpaperInspectorView.swift` | inspector: preview, details and actions |
-| `UI/MenuBarPopoverController.swift` | fixed 340 pt status-item popover: preview, actions, displays, switches, footer |
+| `UI/MenuBarPopoverController.swift` | fixed 340 pt status-item popover: preview, actions, displays, pause/mute/desktop-icon switches, footer |
 | `UI/AppModel.swift` | `AppSnapshot` / `AppActions` interface between UI and shell |
 | `UI/Theme.swift` | colors, type scale, spacing, radii and animation tokens |
 | `UI/Components.swift` | themed surfaces, buttons, badges, labels, the official brand mark and shared views |
 | `UI/AboutContent.swift` | shared About copy and controls |
+| `UI/AboutFeedback.swift` | shared About & Feedback page, update/help/community cards, bug-report privacy preview |
 | `UI/KoFiSupport.swift` | Ko-fi-branded support button and the in-app `WKWebView` tip window |
 | `UI/AboutWindowController.swift` | standalone About window |
 | `UI/GalleryModel.swift` | search, filters, cycling |
@@ -186,6 +192,52 @@ All state lives in `UserDefaults` under the `tangent.` prefix:
 `WallpaperStore.load()` accepts both the current layout shape and the older
 single-wallpaper blob, so an upgrade never drops the active wallpaper.
 
+The desktop-icon switch is the one setting Tangent does not own: it reads and
+writes Finder's `com.apple.finder` `CreateDesktop` key, so Finder remains the
+source of truth. A missing key is treated as Finder's default, visible icons.
+After a write, Tangent asks Finder to relaunch so the desktop redraws. Both the
+popover and the Automation page read the same `DesktopIcons.State`; the service
+accepts an injectable store so tests never change the real preference.
+
+## Desktop icons
+
+`DesktopIcons` is deliberately independent of the wallpaper engine:
+
+- `refresh()` reads `defaults read com.apple.finder CreateDesktop`. Exit 1
+  (missing key) means visible; an unambiguous boolean is mapped to
+  `visible`/`hidden`.
+- `setHidden(_:)` runs the write and `/usr/bin/killall Finder` on a background
+  queue, sets a busy flag first, then re-reads the preference and publishes the
+  result on the main queue.
+- A write failure never restarts Finder. A relaunch failure is reported without
+  pretending the preference failed.
+- `AppDelegate` mirrors the state into `AppSnapshot` and refreshes the popover
+  and the open library page when it changes; there is no second stored flag to
+  drift out of sync.
+
+## Updates and diagnostics
+
+`GitHubRepo` is the only place the official project appears: owner
+`anuragdevcode`, repository `Tangent`, the latest-release API, Discussions,
+releases and the bug-report template. `ExternalLink` refuses non-HTTPS URLs
+before opening anything.
+
+`UpdateChecker` makes one conditional `URLSession` request (Accept
+`application/vnd.github+json`, API version `2022-11-28`, ETag) and stores the
+last release plus check date. It throttles ordinary launches to 24 hours,
+bypasses the interval only for an explicit check, and never runs two requests at
+once. `ReleaseModel` compares semantic versions (including prereleases), ignores
+drafts and prereleases for stable builds, and picks a universal DMG, an
+architecture-matching DMG, the only DMG, or the release page in that order.
+Nothing is downloaded, mounted, replaced or executed.
+
+`FeedbackManager` builds the diagnostic summary from the bundle version,
+`ProcessInfo`/`sysctl` fields and running architecture. It excludes serial
+numbers, Apple IDs, usernames, home paths, IP addresses, installed apps and
+files. The issue URL carries only the template and title because GitHub issue
+forms ignore prefilled bodies; the summary is copied to the clipboard after a
+privacy preview.
+
 ## Shortcuts
 
 `HotkeyManager` uses Carbon `RegisterEventHotKey` rather than `NSEvent` monitors,
@@ -241,10 +293,11 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 186 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 299 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
-payloads, property copies, display layouts, gallery query/filter/cycling, and
-shortcut validation/persistence.
+payloads, property copies, display layouts, gallery query/filter/cycling,
+shortcut validation/persistence, GitHub release/update policy, diagnostics
+privacy, and the desktop-icon state machine.
 
 Runtime checks that cannot run in-process are exposed as CLI flags:
 
@@ -267,4 +320,4 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 3. Remote/HLS `videostream` playback.
 4. Host audio feed for audio-reactive packs (ScreenCaptureKit or CoreAudio tap).
 5. Per-display property copies.
-6. Developer ID signing, notarization and updates.
+6. Developer ID signing and notarization.

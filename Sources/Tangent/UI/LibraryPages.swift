@@ -236,6 +236,19 @@ final class AutomationPageView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
 
+    private var desktopIconsDescription: String {
+        if snapshot.desktopIconsBusy {
+            return "Updating the desktop… Finder will reopen in a moment."
+        }
+        if let failure = snapshot.desktopIconsState.failure {
+            return "Couldn’t update desktop icons. \(failure)"
+        }
+        if snapshot.desktopIconsState.isHidden {
+            return "Desktop icons are hidden. Turn this off to show them again."
+        }
+        return "Hide every item on the desktop. Finder restarts briefly."
+    }
+
     private func build() {
         let title = makeLabel("Automation", font: Theme.windowTitle)
         let subtitle = makeWrappingLabel(
@@ -292,7 +305,23 @@ final class AutomationPageView: NSView {
                 self?.actions.setHotkeysEnabled(isOn)
             }
         )
-        let hotkeys = GroupedSection(title: "Shortcuts", rows: [hotkeyRow])
+
+        let desktopIconsToggle = toggle(isOn: snapshot.desktopIconsState.isHidden) {
+            [weak self] isOn in
+            self?.actions.setDesktopIconsHidden(isOn)
+        }
+        desktopIconsToggle.isEnabled = !snapshot.desktopIconsBusy
+        desktopIconsToggle.setAccessibilityLabel("Hide Desktop Icons")
+        let desktopIconsRow = SettingsRow(
+            symbol: "desktopcomputer",
+            title: "Hide Desktop Icons",
+            subtitle: desktopIconsDescription,
+            trailing: desktopIconsToggle
+        )
+        let hotkeys = GroupedSection(
+            title: "Shortcuts",
+            rows: [hotkeyRow, HairlineView(), desktopIconsRow]
+        )
 
         let statusCard = CardView()
         statusCard.fillColor = Theme.cardFill

@@ -11,6 +11,8 @@ assignments, playback rules and live controls.
 - Reads the widely used v1 wallpaper-pack format, including its control surface.
 - Global shortcuts, a menu bar popover, a library window with an inspector and a
   four-pane Settings window, all built with AppKit only.
+- A desktop-icon switch in the popover and Automation page, so the wallpaper can
+  take the whole desktop without touching any files.
 
 ## Requirements
 
@@ -42,8 +44,8 @@ open build/Tangent.app
 ```
 
 A menu bar icon appears. Clicking it opens a compact popover with the current
-wallpaper, play/pause, the per-display state and the quick toggles. From the
-menu:
+wallpaper, play/pause, the per-display state and the quick toggles for pause,
+mute and desktop icons. From the menu:
 
 - **Library…** (⌘L) — the library window: browse by section, search, favorite,
   inspect and apply wallpapers
@@ -219,6 +221,21 @@ combination, the rest still work and Settings names the unavailable action.
   update status, help routes and community links, plus the in-app Ko-fi tip
   window
 
+## Desktop icons
+
+The popover has a **Hide Desktop Icons** switch, and the same switch appears in
+the library under **Automation ▸ Shortcuts**. Turning it on hides every item
+Finder draws on the desktop so the wallpaper can fill the screen; turning it off
+brings the icons back.
+
+macOS has no public desktop-icon API, so Tangent changes Finder's own
+`com.apple.finder` → `CreateDesktop` preference and asks Finder to relaunch. The
+relaunch is brief, and Finder windows and open files are not touched. The switch
+reflects the preference Finder actually has, not a separate saved flag, and is
+re-read whenever the popover or Automation page opens. If the preference cannot
+be read or written, the row stays in place and explains the failure instead of
+showing a false state.
+
 ## Updates, diagnostics and community
 
 Tangent talks to one repository only: the official
@@ -270,7 +287,8 @@ $BIN --set ~/Wallpapers/aurora --display 2 --ephemeral
 # Open the library window at launch
 $BIN --library
 
-# Compatibility test suite (parsers, bridge payloads, library, gallery, hotkeys, layouts)
+# Compatibility test suite (parsers, bridge payloads, library, gallery, hotkeys,
+# layouts, releases, diagnostics and desktop icons)
 $BIN --test
 
 # Prove all four shortcuts register; does not change the saved preference
@@ -353,12 +371,13 @@ Sources/Tangent/
   Services/ReleaseModel.swift    release models, semver, asset selection, update policy
   Services/UpdateChecker.swift   conditional release lookup, cache, 24h schedule, states
   Services/FeedbackManager.swift sysctl diagnostics, privacy summary, issue URL
+  Services/DesktopIcons.swift    Finder desktop-icon preference and relaunch
   Packs/                     pack format, metadata/property parsing, library
                              scanning, thumbnails, JSON tree, property store
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About & Feedback, in-app Ko-fi
                              support, control panel, theme and shared components
-  Diagnostics/SelfTests.swift     278-check compatibility and service suite
+  Diagnostics/SelfTests.swift     299-check compatibility and service suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 .github/ISSUE_TEMPLATE/      bug-report issue form and contact links
@@ -376,17 +395,19 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 278 checks` |
+| Compatibility suite (`--test`) | `PASS — 299 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 4982319e636a9a6c1defe5b3f323b834946d4d6055fc5e0868c0da8a7d8636de`, arm64 |
+| Binary | `sha256 885222445cc7307566363af987d335a3fddf149995071e9bfe2bbe330b5d1a73`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
 | Library additions | two videos in one folder stay two entries with distinct ids; adding a folder discovers the videos inside; 5 assertions |
 | App icon | `AppIcon.icns` uses the official mark full-bleed (1024 px, all sizes) and `CFBundleIconFile` names it; About and the popover use the same mark from `BrandMark.png` |
-| Menu bar popover (`--snapshot-popover`) | a stable `340×516` surface across runs: hero preview, one action row, one display row and the pause/mute switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
+| Menu bar popover (`--snapshot-popover`) | a stable `340×559` surface across runs: hero preview, one action row, one display row and the pause/mute/desktop-icon switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
+| Desktop icons (`--test`) | 21 assertions cover read failure, write failure, busy/finish transitions, Finder-relaunch sequencing, hide/show round-tripping and refresh recovery; the real `defaults write/read com.apple.finder CreateDesktop` round-trip was checked and the original missing key restored |
 | Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About & Feedback render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
+| Automation desktop icons (`--snapshot-library --library-section 6`) | the **Shortcuts** card shows Global Shortcuts and Hide Desktop Icons in the same row style with the Finder-restart explanation; the busy-state disabling is covered by the service tests |
 | About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |
 | Update/diagnostics suite (`--test`) | semver with prereleases, drafts, asset selection, HTTP 304/403/404/429/500, offline errors, a mocked `URLSession` request, 24-hour scheduling, diagnostic fields/fallbacks/Rosetta, privacy exclusions and issue-URL encoding |
 | GitHub endpoint (`curl`) | `releases/latest` currently answers HTTP `404` because no release is published yet; the checker maps that to its non-intrusive “No published releases yet.” state |

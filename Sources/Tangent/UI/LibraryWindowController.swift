@@ -808,6 +808,12 @@ final class LibraryWindowController: NSWindowController,
     private func show(section: LibrarySection) {
         guard section != selectedSection else { return }
 
+        if section == .automation {
+            // Finder owns this preference; read it when the page is opened so
+            // the switch does not show a stale value from launch.
+            actions.refreshDesktopIcons()
+        }
+
         selectedSection = section
         inspectorView.stopPreview()
 
@@ -829,6 +835,7 @@ final class LibraryWindowController: NSWindowController,
             model.query.filter = section.filter ?? .all
             refresh()
         } else {
+            snapshot = actions.snapshot()
             headerView.isHidden = true
             gridScroll.isHidden = true
             hintBar.isHidden = true

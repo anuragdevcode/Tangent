@@ -33,7 +33,9 @@ final class MenuBarPopoverController: NSViewController {
     private var contentStack: NSStackView!
     private let pauseSwitch = NSSwitch()
     private let muteSwitch = NSSwitch()
+    private let desktopIconsSwitch = NSSwitch()
     private var pauseRow: SettingsRow!
+    private var desktopIconsRow: SettingsRow!
     private let updateNotice = HoverButton(
         "",
         symbol: "arrow.down.circle.fill",
@@ -109,6 +111,10 @@ final class MenuBarPopoverController: NSViewController {
         muteSwitch.target = switchTarget { [weak self] isOn in
             self?.actions.setMuted(isOn)
         }
+        desktopIconsSwitch.target = switchTarget { [weak self] isOn in
+            self?.actions.setDesktopIconsHidden(isOn)
+        }
+        desktopIconsSwitch.setAccessibilityLabel("Hide Desktop Icons")
 
         pauseRow = SettingsRow(
             symbol: "pause.circle",
@@ -122,7 +128,19 @@ final class MenuBarPopoverController: NSViewController {
             trailing: muteSwitch
         )
         muteRow.toolTip = "Mute audio on every display."
-        let quickCard = GroupedSection(title: nil, rows: [pauseRow, HairlineView(), muteRow])
+        desktopIconsRow = SettingsRow(
+            symbol: "desktopcomputer",
+            title: "Hide Desktop Icons",
+            trailing: desktopIconsSwitch
+        )
+        let quickCard = GroupedSection(
+            title: nil,
+            rows: [
+                pauseRow, HairlineView(),
+                muteRow, HairlineView(),
+                desktopIconsRow,
+            ]
+        )
 
         updateNotice.target = self
         updateNotice.action = #selector(downloadUpdate)
@@ -249,6 +267,9 @@ final class MenuBarPopoverController: NSViewController {
             popover.performClose(nil)
             return
         }
+        // Finder can change this setting while Tangent is running; re-read it
+        // before measuring the popover so the switch always reflects Finder.
+        actions.refreshDesktopIcons()
         reload()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         // NSPopover lowers the content view's width constraint while it sizes
@@ -339,6 +360,23 @@ final class MenuBarPopoverController: NSViewController {
         muteSwitch.state = snapshot.isMuted ? .on : .off
         muteSwitch.isEnabled = snapshot.defaultConfig != nil
         pauseRow.toolTip = snapshot.pauseDescription
+
+        desktopIconsSwitch.state = snapshot.desktopIconsState.isHidden ? .on : .off
+        desktopIconsSwitch.isEnabled = !snapshot.desktopIconsBusy
+        desktopIconsRow.toolTip = desktopIconsHelp
+    }
+
+    private var desktopIconsHelp: String {
+        if snapshot.desktopIconsBusy {
+            return "Updating desktop icons…"
+        }
+        if let failure = snapshot.desktopIconsState.failure {
+            return "Couldn’t update desktop icons. \(failure)"
+        }
+        if snapshot.desktopIconsState.isHidden {
+            return "Desktop icons are hidden. Turn this off to show them again."
+        }
+        return "Hide every item on the desktop. Finder restarts briefly."
     }
 
     private func updateDisplays() {

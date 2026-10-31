@@ -1002,6 +1002,83 @@ enum SelfTests {
         expect(FeedbackManager.privacyNote.contains("does not include"),
                "the privacy note explains what is excluded")
 
+        // MARK: Desktop icons
+
+        print("Desktop icons")
+        let iconStore = DesktopIconsTestStore()
+        let icons = DesktopIcons(
+            store: iconStore.store,
+            queue: DispatchQueue(label: "tests.desktop-icons"),
+            callbackQueue: DispatchQueue(label: "tests.desktop-icons.callbacks")
+        )
+        expect(icons.state == .visible,
+               "an absent Finder preference means desktop icons are visible")
+        expect(!icons.isHidden, "visible icons report an off toggle")
+
+        func updateIcons(_ service: DesktopIcons, hidden: Bool) -> Bool {
+            let semaphore = DispatchSemaphore(value: 0)
+            service.setHidden(hidden) { semaphore.signal() }
+            return semaphore.wait(timeout: .now() + 5) == .success
+        }
+
+        let writeGate = DispatchSemaphore(value: 0)
+        let blockingStore = DesktopIconsTestStore()
+        blockingStore.writeGate = writeGate
+        let blockingIcons = DesktopIcons(
+            store: blockingStore.store,
+            queue: DispatchQueue(label: "tests.desktop-icons.blocking"),
+            callbackQueue: DispatchQueue(label: "tests.desktop-icons.blocking.callbacks")
+        )
+        let blockingDone = DispatchSemaphore(value: 0)
+        blockingIcons.setHidden(true) { blockingDone.signal() }
+        expect(blockingIcons.isBusy, "a desktop icon update is marked busy")
+        writeGate.signal()
+        expect(blockingDone.wait(timeout: .now() + 5) == .success,
+               "a blocked desktop icon update eventually completes")
+        expect(!blockingIcons.isBusy, "the busy flag clears after an update")
+
+        expect(updateIcons(icons, hidden: true), "hiding desktop icons completes")
+        expect(iconStore.writes == [true], "the hide request writes an explicit setting")
+        expect(iconStore.restartCount == 1, "Finder is restarted after hiding icons")
+        expect(icons.state == .hidden, "the service reports hidden icons")
+        expect(icons.isHidden, "hidden icons report an on toggle")
+        expect(!icons.isBusy, "the busy flag clears after hiding")
+
+        expect(updateIcons(icons, hidden: false), "showing desktop icons completes")
+        expect(iconStore.writes == [true, false], "the show request writes the reverse setting")
+        expect(iconStore.restartCount == 2, "Finder is restarted after showing icons")
+        expect(icons.state == .visible, "the service reports visible icons")
+
+        let failingStore = DesktopIconsTestStore()
+        failingStore.writeError = DesktopIconsTestError("The settings store is locked.")
+        let failingIcons = DesktopIcons(
+            store: failingStore.store,
+            queue: DispatchQueue(label: "tests.desktop-icons.failure"),
+            callbackQueue: DispatchQueue(label: "tests.desktop-icons.failure.callbacks")
+        )
+        expect(updateIcons(failingIcons, hidden: true),
+               "a failed desktop icon update still finishes")
+        expect(failingIcons.state.failure?.contains("settings store is locked") == true,
+               "a write failure is surfaced")
+        expect(failingStore.restartCount == 0,
+               "Finder is not restarted when the preference write fails")
+        expect(!failingIcons.isBusy, "the busy flag clears after a failure")
+
+        let unreadableStore = DesktopIconsTestStore()
+        unreadableStore.readError = DesktopIconsTestError("The preference is unreadable.")
+        let unreadableIcons = DesktopIcons(
+            store: unreadableStore.store,
+            queue: DispatchQueue(label: "tests.desktop-icons.read"),
+            callbackQueue: DispatchQueue(label: "tests.desktop-icons.read.callbacks")
+        )
+        expect(unreadableIcons.state.failure?.contains("preference is unreadable") == true,
+               "a read failure is surfaced")
+        unreadableStore.readError = nil
+        unreadableStore.hidden = true
+        unreadableIcons.refresh()
+        expect(unreadableIcons.state == .hidden,
+               "refreshing recovers the real Finder setting")
+
         // MARK: Summary
 
         print("")
@@ -1038,6 +1115,47 @@ enum SelfTests {
 }
 
 // MARK: - Test doubles
+
+/// Records desktop-icon commands without touching Finder's real preference.
+private final class DesktopIconsTestStore {
+
+    var hidden = false
+    var readError: Error?
+    var writeError: Error?
+    var restartError: Error?
+    var writes: [Bool] = []
+    var restartCount = 0
+    var readCount = 0
+    var writeGate: DispatchSemaphore?
+
+    var store: DesktopIcons.Store {
+        DesktopIcons.Store(
+            isHidden: { [self] in
+                readCount += 1
+                if let readError { throw readError }
+                return hidden
+            },
+            setHidden: { [self] value in
+                if let writeError { throw writeError }
+                writeGate?.wait()
+                writes.append(value)
+                hidden = value
+            },
+            restartFinder: { [self] in
+                restartCount += 1
+                if let restartError { throw restartError }
+            }
+        )
+    }
+}
+
+private struct DesktopIconsTestError: LocalizedError {
+    let errorDescription: String?
+
+    init(_ message: String) {
+        errorDescription = message
+    }
+}
 
 /// A URLProtocol that answers from a closure, so update-check tests never
 /// touch the network.
