@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion'
-import { Search, Wifi, BatteryMedium, Menu, PictureInPicture2, SkipForward, Shuffle, Pause, Cog, Heart, Monitor, VolumeX } from 'lucide-react'
+import { Search, Wifi, BatteryMedium, Menu, PictureInPicture2, SkipForward, Shuffle, Pause, Cog, Heart, Monitor, MonitorOff, VolumeX } from 'lucide-react'
 import { SectionHead, Reveal, AmbientVideo } from '../components/Shared.jsx'
 import { MEDIA, VERSION, FAVICON } from '../data/content.js'
 
@@ -113,6 +113,11 @@ function Popover() {
           <span>Mute Audio</span>
           <span className="toggle is-on"><span className="toggle-knob" style={{ transform: 'translateX(100%)' }} /></span>
         </div>
+        <div className="popover-switch">
+          <MonitorOff size={13} />
+          <span>Hide Desktop Icons</span>
+          <span className="toggle is-on"><span className="toggle-knob" style={{ transform: 'translateX(100%)' }} /></span>
+        </div>
       </div>
 
       <div className="popover-foot">
@@ -138,9 +143,9 @@ export default function BehindIcons() {
       <div className="kwrap">
         <SectionHead
           align="left"
-          eyebrow="Behind the icons — literally"
-          title={<>macOS has no &ldquo;desktop-parent&rdquo; window.</>}
-          lede="No SetParent. No shell hacks. Tangent draws its own borderless, click-through window one layer above the static desktop picture — and one below your icons. The WindowServer owns the lifecycle, so nothing can crash it, steal focus, or end up in your Dock."
+          eyebrow="Hide desktop icons — no willpower required"
+          title={<>Your desktop icons are ruining the wallpaper. Hide them.</>}
+          lede="One switch in the popover or under Automation ▸ Shortcuts hides every icon, because a wallpaper you can’t see is just an expensive screensaver. Flip it on for a suspiciously calm desktop — and off when you need that one file you saved there three years ago. It’s not avoidance. It’s curation."
         />
       </div>
 
@@ -184,17 +189,14 @@ export default function BehindIcons() {
 
       <div className="kwrap">
         <Reveal delay={0.1}>
-          <div className="layer-stack" aria-label="Window level diagram">
+          <div className="layer-stack" aria-label="Desktop layering diagram">
             <div className="layer-row">
-              <span className="layer-num">−2 147 483 623</span>
               <span className="layer-bar">kCGDesktopWindowLevel · static desktop picture</span>
             </div>
             <div className="layer-row layer-row--hero">
-              <span className="layer-num">−2 147 483 622</span>
               <span className="layer-bar">← Tangent&rsquo;s wallpaper window</span>
             </div>
             <div className="layer-row">
-              <span className="layer-num">−2 147 483 603</span>
               <span className="layer-bar">kCGDesktopIconWindowLevel · your icons</span>
             </div>
           </div>
