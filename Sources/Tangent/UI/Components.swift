@@ -641,6 +641,26 @@ final class ActionTarget: NSObject {
     }
 }
 
+extension ActionTarget {
+
+    /// Connects an `NSSwitch` to a closure and retains the target. Setting only
+    /// `target` is not enough: without an `action`, AppKit never sends anything.
+    @discardableResult
+    static func bind(
+        to toggle: NSSwitch,
+        retaining targets: inout [ActionTarget],
+        handler: @escaping (Bool) -> Void
+    ) -> ActionTarget {
+        let target = ActionTarget { sender in
+            handler((sender as? NSSwitch)?.state == .on)
+        }
+        targets.append(target)
+        toggle.target = target
+        toggle.action = #selector(ActionTarget.fire(_:))
+        return target
+    }
+}
+
 // MARK: - Key cap
 /// Rounded keycap used to display a shortcut.
 final class KeyCapView: ThemedView {

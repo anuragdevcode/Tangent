@@ -45,6 +45,9 @@ semantic versioning once it reaches 1.0.
   rather than a private API; a missing preference is treated as Finder's default
   visible state, and read/write failures are shown inline instead of being
   silently swallowed.
+- The popover switches for pause, mute and desktop icons now install both a
+  target and an action. Previously they were given only a target, so clicking
+  them changed nothing.
 
 ## [0.4.1] — 2026-10-29
 

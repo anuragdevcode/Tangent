@@ -377,7 +377,7 @@ Sources/Tangent/
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About & Feedback, in-app Ko-fi
                              support, control panel, theme and shared components
-  Diagnostics/SelfTests.swift     299-check compatibility and service suite
+  Diagnostics/SelfTests.swift     301-check compatibility and service suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 .github/ISSUE_TEMPLATE/      bug-report issue form and contact links
@@ -395,10 +395,10 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 299 checks` |
+| Compatibility suite (`--test`) | `PASS — 301 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 885222445cc7307566363af987d335a3fddf149995071e9bfe2bbe330b5d1a73`, arm64 |
+| Binary | `sha256 4857fdf944df033bf780f209f9e37b07abbe866a97f1f4a5358267368fb55b88`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |

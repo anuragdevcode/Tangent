@@ -1005,6 +1005,20 @@ enum SelfTests {
         // MARK: Desktop icons
 
         print("Desktop icons")
+        var switchTargets: [ActionTarget] = []
+        var switchValue: Bool?
+        let popoverSwitch = NSSwitch()
+        ActionTarget.bind(to: popoverSwitch, retaining: &switchTargets) {
+            switchValue = $0
+        }
+        expect(popoverSwitch.action != nil && popoverSwitch.target != nil,
+               "a popover switch gets both a target and an action")
+        popoverSwitch.state = .on
+        if let action = popoverSwitch.action {
+            _ = popoverSwitch.target?.perform(action, with: popoverSwitch)
+        }
+        expect(switchValue == true, "a popover switch sends its on state")
+
         let iconStore = DesktopIconsTestStore()
         let icons = DesktopIcons(
             store: iconStore.store,

@@ -105,13 +105,13 @@ final class MenuBarPopoverController: NSViewController {
             insets: NSEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
         )
 
-        pauseSwitch.target = switchTarget { [weak self] _ in
+        ActionTarget.bind(to: pauseSwitch, retaining: &targets) { [weak self] _ in
             self?.actions.togglePause()
         }
-        muteSwitch.target = switchTarget { [weak self] isOn in
+        ActionTarget.bind(to: muteSwitch, retaining: &targets) { [weak self] isOn in
             self?.actions.setMuted(isOn)
         }
-        desktopIconsSwitch.target = switchTarget { [weak self] isOn in
+        ActionTarget.bind(to: desktopIconsSwitch, retaining: &targets) { [weak self] isOn in
             self?.actions.setDesktopIconsHidden(isOn)
         }
         desktopIconsSwitch.setAccessibilityLabel("Hide Desktop Icons")
@@ -250,14 +250,6 @@ final class MenuBarPopoverController: NSViewController {
         button.heightAnchor.constraint(equalToConstant: 18).isActive = true
         button.font = Theme.tiny
         return button
-    }
-
-    private func switchTarget(_ handler: @escaping (Bool) -> Void) -> ActionTarget {
-        let target = ActionTarget { sender in
-            handler((sender as? NSSwitch)?.state == .on)
-        }
-        targets.append(target)
-        return target
     }
 
     // MARK: - Presentation

@@ -293,7 +293,7 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 299 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 301 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling,
 shortcut validation/persistence, GitHub release/update policy, diagnostics
