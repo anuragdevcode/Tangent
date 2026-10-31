@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a problem with Tangent
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Tangent. Please search existing issues first, then fill in the details below.
+
+        The app can build a short, privacy-safe summary for you: open **Tangent → Settings → About & Feedback → Report a Bug**, review it, then paste it into the Diagnostics field.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong, in one or two sentences?
+      placeholder: The wallpaper turns black after waking from sleep.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that reliably shows the problem.
+      placeholder: |
+        1. Open Tangent
+        2. Apply a video wallpaper
+        3. Lock and unlock the Mac
+        4. Observe the wallpaper
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the summary from Tangent (Copy Diagnostics). It contains only the app version, macOS version, hardware model, and architecture.
+      render: shell
+      placeholder: |
+        ### Environment
+        - Tangent: 0.4.1 (5)
+        - macOS: Version 14.5 (Build 23F79)
+        - Hardware: Mac15,6
+        - Architecture: Apple Silicon · arm64
+    validations:
+      required: false
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Screenshots or recordings
+      description: Drag images here if they help explain the problem. Remove anything private first.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: I reviewed the diagnostics above and removed anything I do not want to share.
+          required: true

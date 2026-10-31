@@ -34,6 +34,11 @@ final class MenuBarPopoverController: NSViewController {
     private let pauseSwitch = NSSwitch()
     private let muteSwitch = NSSwitch()
     private var pauseRow: SettingsRow!
+    private let updateNotice = HoverButton(
+        "",
+        symbol: "arrow.down.circle.fill",
+        style: .borderless
+    )
 
     init(actions: AppActions) {
         self.actions = actions
@@ -119,6 +124,13 @@ final class MenuBarPopoverController: NSViewController {
         muteRow.toolTip = "Mute audio on every display."
         let quickCard = GroupedSection(title: nil, rows: [pauseRow, HairlineView(), muteRow])
 
+        updateNotice.target = self
+        updateNotice.action = #selector(downloadUpdate)
+        updateNotice.translatesAutoresizingMaskIntoConstraints = false
+        updateNotice.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        updateNotice.font = Theme.caption
+        updateNotice.isHidden = true
+
         let footerSeparator = HairlineView()
         footerSeparator.translatesAutoresizingMaskIntoConstraints = false
 
@@ -162,6 +174,7 @@ final class MenuBarPopoverController: NSViewController {
                 displaysHeader,
                 displayCard,
                 quickCard,
+                updateNotice,
                 footerSeparator,
                 footer,
             ],
@@ -189,6 +202,7 @@ final class MenuBarPopoverController: NSViewController {
             displaysHeader.widthAnchor.constraint(equalTo: stack.widthAnchor),
             displayCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
             quickCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            updateNotice.widthAnchor.constraint(equalTo: stack.widthAnchor),
             footerSeparator.widthAnchor.constraint(equalTo: stack.widthAnchor),
             footer.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
@@ -263,6 +277,7 @@ final class MenuBarPopoverController: NSViewController {
         updateDisplays()
         updateSwitches()
         updateActions()
+        updateUpdateNotice()
         view.layoutSubtreeIfNeeded()
         let size = NSSize(width: 340, height: popoverHeight())
         preferredContentSize = size
@@ -304,6 +319,18 @@ final class MenuBarPopoverController: NSViewController {
             weight: .semibold
         )
         playButton.applyStyle()
+    }
+
+    private func updateUpdateNotice() {
+        guard let update = snapshot.updateState.update else {
+            updateNotice.isHidden = true
+            return
+        }
+        updateNotice.title = "Tangent \(update.version) is available"
+        updateNotice.toolTip = update.isDirectDownload
+            ? "Open the official download for this Mac"
+            : "Open the official release page"
+        updateNotice.isHidden = false
     }
 
     private func updateSwitches() {
@@ -355,6 +382,7 @@ final class MenuBarPopoverController: NSViewController {
     @objc private func openLibrary() { close(); actions.openLibrary() }
     @objc private func openDisplays() { close(); actions.openLibrarySection(.displays) }
     @objc private func openSettings() { close(); actions.openSettings() }
+    @objc private func downloadUpdate() { close(); actions.downloadUpdate() }
     @objc private func openSupport() {
         close()
         KoFiSupportWindowController.shared.present()

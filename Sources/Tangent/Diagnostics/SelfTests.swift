@@ -647,6 +647,361 @@ enum SelfTests {
         expect(KoFi.pageURL.host == "ko-fi.com", "support URL uses the ko-fi.com host")
         expect(Theme.koFi != Theme.accent, "Ko-fi button keeps its own brand colour")
 
+        // MARK: GitHub repository and semantic versions
+
+        print("GitHub releases")
+        expect(GitHubRepo.repository.absoluteString == "https://github.com/anuragdevcode/Tangent",
+               "repository points at the official project")
+        expect(GitHubRepo.latestReleaseAPI.absoluteString
+                == "https://api.github.com/repos/anuragdevcode/Tangent/releases/latest",
+               "release API points at the official project")
+        expect(GitHubRepo.discussions.absoluteString
+                == "https://github.com/anuragdevcode/Tangent/discussions",
+               "discussions point at the official project")
+        expect(ExternalLink.isSafe(GitHubRepo.repository), "official links are safe HTTPS URLs")
+        expect(!ExternalLink.isSafe(URL(string: "http://github.com/anuragdevcode/Tangent")!),
+               "plain HTTP links are rejected")
+        expect(ExternalLink.https("https://github.com/anuragdevcode/Tangent") != nil,
+               "a valid HTTPS string becomes a URL")
+        expect(ExternalLink.https("javascript:alert(1)") == nil,
+               "non-HTTPS schemes are rejected")
+
+        expect(ReleaseVersion("1.2.3") == ReleaseVersion("v1.2.3"),
+               "a leading v is ignored")
+        expect(ReleaseVersion("1.2.3") == ReleaseVersion("1.2.3+build.7"),
+               "build metadata is ignored")
+        expect(ReleaseVersion("1.2") == ReleaseVersion("1.2.0"),
+               "missing patch defaults to zero")
+        expect((ReleaseVersion("2.0.0")!) > (ReleaseVersion("1.9.9")!),
+               "major versions compare numerically")
+        expect((ReleaseVersion("1.10.0")!) > (ReleaseVersion("1.9.9")!),
+               "minor versions compare numerically")
+        expect((ReleaseVersion("1.2.10")!) > (ReleaseVersion("1.2.9")!),
+               "patch versions compare numerically")
+        expect((ReleaseVersion("1.0.0")!) > (ReleaseVersion("1.0.0-rc.1")!),
+               "a stable release outranks its prerelease")
+        expect((ReleaseVersion("1.0.0-beta.2")!) > (ReleaseVersion("1.0.0-beta.1")!),
+               "numeric prerelease identifiers compare numerically")
+        expect((ReleaseVersion("1.0.0-alpha")!) < (ReleaseVersion("1.0.0-alpha.1")!),
+               "a longer prerelease identifier list wins")
+        expect((ReleaseVersion("1.0.0-1")!) < (ReleaseVersion("1.0.0-alpha")!),
+               "numeric identifiers sort below alphanumeric ones")
+        expect(ReleaseVersion("") == nil, "an empty tag is rejected")
+        expect(ReleaseVersion("v") == nil, "a bare v is rejected")
+        expect(ReleaseVersion("1.2.3.4") == nil, "four components are rejected")
+        expect(ReleaseVersion("1..2") == nil, "empty components are rejected")
+        expect(ReleaseVersion("1.2.x") == nil, "non-numeric components are rejected")
+        expect(ReleaseVersion("1.2.3-") == nil, "an empty prerelease suffix is rejected")
+
+        let stableUpdate = UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "v1.2.4"),
+            installed: ReleaseVersion("1.2.3")!
+        )
+        expect(stableUpdate.update?.version == ReleaseVersion("1.2.4"),
+               "a newer stable release is offered")
+        expect(UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "1.2.3"),
+            installed: ReleaseVersion("1.2.3")!
+        ) == .upToDate, "an identical version is up to date")
+        expect(UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "v2.0.0-beta.1", prerelease: true),
+            installed: ReleaseVersion("1.2.3")!
+        ) == .upToDate, "a prerelease is not offered to a stable build")
+        expect(UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "v2.0.0", draft: true),
+            installed: ReleaseVersion("1.2.3")!
+        ) == .upToDate, "drafts are never offered")
+        expect(UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "v2.0.0-beta.2", prerelease: true),
+            installed: ReleaseVersion("2.0.0-beta.1")!
+        ).update?.version == ReleaseVersion("2.0.0-beta.2"),
+               "a newer prerelease is offered to a prerelease build")
+        if case .failed = UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "latest"),
+            installed: ReleaseVersion("1.2.3")!
+        ) {
+            expect(true, "an invalid release tag is reported as a failure")
+        } else {
+            expect(false, "an invalid release tag is reported as a failure")
+        }
+
+        // MARK: Release assets
+
+        print("Release assets")
+        let universal = GitHubRelease.Asset(
+            name: "Tangent-universal.dmg",
+            browserDownloadURL: "https://github.com/anuragdevcode/Tangent/releases/download/v1.0.0/Tangent-universal.dmg",
+            contentType: "application/x-apple-diskimage",
+            size: 100
+        )
+        let arm = GitHubRelease.Asset(
+            name: "Tangent-arm64.dmg",
+            browserDownloadURL: "https://github.com/anuragdevcode/Tangent/releases/download/v1.0.0/Tangent-arm64.dmg",
+            contentType: "application/x-apple-diskimage",
+            size: 90
+        )
+        let intel = GitHubRelease.Asset(
+            name: "Tangent-x86_64.DMG",
+            browserDownloadURL: "https://github.com/anuragdevcode/Tangent/releases/download/v1.0.0/Tangent-x86_64.DMG",
+            contentType: "application/x-apple-diskimage",
+            size: 80
+        )
+        let page = "https://github.com/anuragdevcode/Tangent/releases/tag/v1.0.0"
+        let multi = GitHubRelease(
+            tagName: "v1.0.0",
+            htmlURL: page,
+            assets: [intel, arm, universal]
+        )
+        expect(multi.preferredDMG(for: .arm64)?.name == universal.name,
+               "a universal DMG wins over an architecture-specific one")
+        expect(GitHubRelease(tagName: "v1.0.0", assets: [intel, arm])
+                .preferredDMG(for: .arm64)?.name == arm.name,
+               "an arm64 DMG is chosen on Apple Silicon")
+        expect(GitHubRelease(tagName: "v1.0.0", assets: [intel, arm])
+                .preferredDMG(for: .x86_64)?.name == intel.name,
+               "DMG matching is case-insensitive and architecture-aware")
+        expect(GitHubRelease(tagName: "v1.0.0", assets: [arm])
+                .preferredDMG(for: .unknown)?.name == arm.name,
+               "a single DMG is chosen even when the arch is unknown")
+        expect(GitHubRelease(tagName: "v1.0.0", assets: [intel, arm])
+                .preferredDMG(for: .unknown) == nil,
+               "ambiguous DMGs are not guessed")
+        expect(GitHubRelease(tagName: "v1.0.0", htmlURL: page, assets: [intel, arm])
+                .downloadURL(for: .unknown)?.absoluteString == page,
+               "ambiguous assets fall back to the release page")
+        expect(GitHubRelease(tagName: "v1.0.0", htmlURL: page)
+                .preferredDMG(for: .arm64) == nil,
+               "a release without assets has no DMG")
+        expect(GitHubRelease(tagName: "v1.0.0", htmlURL: page, assets: [universal])
+                .downloadURL(for: .arm64)?.absoluteString == universal.browserDownloadURL,
+               "the selected asset's real download URL is used")
+        expect(UpdateDecision.evaluate(
+            release: GitHubRelease(tagName: "v2.0.0", htmlURL: page),
+            installed: ReleaseVersion("1.0.0")!
+        ).update?.downloadURL?.absoluteString == page,
+               "an assetless update points at the release page")
+
+        // MARK: Release responses
+
+        print("Release responses")
+        let releaseData = Data(SelfTests.releaseJSON(tag: "v1.2.3").utf8)
+        if case .release(let release, let etag) = ReleaseLookupResult.classify(
+            statusCode: 200,
+            etag: "\"abc\"",
+            rateLimitRemaining: "42",
+            data: releaseData
+        ) {
+            expect(release.tagName == "v1.2.3", "a valid payload decodes its tag")
+            expect(etag == "\"abc\"", "the ETag is preserved")
+        } else {
+            expect(false, "a valid payload decodes its tag")
+            expect(false, "the ETag is preserved")
+        }
+        expect(ReleaseLookupResult.classify(
+            statusCode: 200,
+            etag: nil,
+            rateLimitRemaining: nil,
+            data: Data("not json".utf8)
+        ) == .failed, "invalid JSON is a failure")
+        expect(ReleaseLookupResult.classify(
+            statusCode: 304,
+            etag: nil,
+            rateLimitRemaining: nil,
+            data: Data()
+        ) == .notModified, "HTTP 304 signals a cached payload")
+        expect(ReleaseLookupResult.classify(
+            statusCode: 403,
+            etag: nil,
+            rateLimitRemaining: "0",
+            data: Data()
+        ) == .rateLimited, "HTTP 403 with an exhausted limit is rate limiting")
+        expect(ReleaseLookupResult.classify(
+            statusCode: 429,
+            etag: nil,
+            rateLimitRemaining: nil,
+            data: Data()
+        ) == .rateLimited, "HTTP 429 is rate limiting")
+        expect(ReleaseLookupResult.classify(
+            statusCode: 404,
+            etag: nil,
+            rateLimitRemaining: nil,
+            data: Data()
+        ) == .noRelease, "HTTP 404 means no published release")
+        expect(ReleaseLookupResult.classify(
+            statusCode: 500,
+            etag: nil,
+            rateLimitRemaining: nil,
+            data: Data()
+        ) == .failed, "server errors are failures")
+        expect(ReleaseLookupResult.classify(error: URLError(.notConnectedToInternet)) == .offline,
+               "no network is reported as offline")
+        expect(ReleaseLookupResult.classify(error: URLError(.timedOut)) == .offline,
+               "a timeout is reported as offline")
+        expect(ReleaseLookupResult.classify(error: URLError(.badURL)) == .failed,
+               "an unrelated URL error is a failure")
+        expect(UpdateSchedule.isDue(last: nil, now: Date()), "a first check is always due")
+        expect(UpdateSchedule.isDue(
+            last: Date(timeIntervalSince1970: 0),
+            now: Date(timeIntervalSince1970: UpdateSchedule.interval)
+        ), "a check is due after 24 hours")
+        expect(!UpdateSchedule.isDue(
+            last: Date(timeIntervalSince1970: 0),
+            now: Date(timeIntervalSince1970: UpdateSchedule.interval - 1)
+        ), "a check is throttled before 24 hours")
+        expect(UpdateSchedule.isDue(
+            last: Date(timeIntervalSince1970: 10_000),
+            now: Date(timeIntervalSince1970: 0)
+        ), "a backwards clock does not stall updates")
+
+        // A real URLSession with a mocked URLProtocol: no live GitHub traffic.
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let requestBox = RequestBox()
+        MockURLProtocol.handler = { request in
+            requestBox.request = request
+            let response = HTTPURLResponse(
+                url: GitHubRepo.latestReleaseAPI,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["ETag": "\"mock-etag\""]
+            )!
+            return (response, Data(SelfTests.releaseJSON(tag: "v9.9.9").utf8))
+        }
+        let resultBox = ResultBox()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            resultBox.value = await ReleaseLookup(session: session, version: "0.4.1")
+                .latest(etag: "\"previous\"")
+            semaphore.signal()
+        }
+        let completed = semaphore.wait(timeout: .now() + 10) == .success
+        expect(completed, "a mocked release request completes")
+        if case .release(let mocked, let etag)? = resultBox.value {
+            expect(mocked.tagName == "v9.9.9", "the mocked response is decoded")
+            expect(etag == "\"mock-etag\"", "the mocked ETag is read")
+        } else {
+            expect(false, "the mocked response is decoded")
+            expect(false, "the mocked ETag is read")
+        }
+        if let request = requestBox.request {
+            expect(request.url == GitHubRepo.latestReleaseAPI, "the request uses the official API URL")
+            expect(request.value(forHTTPHeaderField: "Accept") == "application/vnd.github+json",
+                   "the request sends GitHub's media type")
+            expect(request.value(forHTTPHeaderField: "X-GitHub-Api-Version") == "2022-11-28",
+                   "the request pins the GitHub API version")
+            expect(request.value(forHTTPHeaderField: "If-None-Match") == "\"previous\"",
+                   "the cached ETag is sent conditionally")
+            expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("Tangent/") == true,
+                   "the request identifies Tangent")
+        } else {
+            for label in [
+                "the request uses the official API URL",
+                "the request sends GitHub's media type",
+                "the request pins the GitHub API version",
+                "the cached ETag is sent conditionally",
+                "the request identifies Tangent",
+            ] {
+                expect(false, label)
+            }
+        }
+        MockURLProtocol.handler = nil
+
+        // MARK: Diagnostics and feedback
+
+        print("Diagnostics")
+        let diagnostics = DiagnosticsCollector(
+            info: ["CFBundleShortVersionString": "1.2.3", "CFBundleVersion": "42"],
+            operatingSystemVersion: { "Version 14.5 (Build 23F79)" },
+            shortOperatingSystemVersion: { "14.5" },
+            sysctlString: { name in
+                [
+                    "hw.model": "Mac15,6",
+                    "machdep.cpu.brand_string": "Apple M3 Pro",
+                ][name]
+            },
+            sysctlInt: { name in
+                ["hw.optional.arm64": 1, "sysctl.proc_translated": 0][name]
+            },
+            architecture: "arm64"
+        ).collect()
+        expect(diagnostics.appVersion == "1.2.3", "app version comes from the bundle")
+        expect(diagnostics.buildNumber == "42", "build number comes from the bundle")
+        expect(diagnostics.shortMacOSVersion == "14.5", "a short macOS version is available")
+        expect(diagnostics.hardwareModel == "Mac15,6", "the hardware model is read")
+        expect(diagnostics.hardwareDescription.contains("Apple M3 Pro"),
+               "a chip identifier is included when available")
+        expect(diagnostics.isAppleSilicon == true, "Apple Silicon is detected")
+        expect(diagnostics.architectureDescription.contains("arm64"),
+               "the running architecture is reported")
+        expect(diagnostics.isTranslated == false, "Rosetta status is reported")
+        expect(!diagnostics.architectureDescription.contains("Rosetta"),
+               "native execution is not labelled Rosetta")
+
+        let fallback = DiagnosticsCollector(
+            info: [:],
+            operatingSystemVersion: { "" },
+            shortOperatingSystemVersion: { "" },
+            sysctlString: { _ in nil },
+            sysctlInt: { _ in nil },
+            architecture: "x86_64"
+        ).collect()
+        expect(fallback.appVersion == "Unknown", "a missing version falls back safely")
+        expect(fallback.buildNumber == "Unknown", "a missing build falls back safely")
+        expect(fallback.hardwareModel == nil, "missing hardware stays missing")
+        expect(fallback.hardwareDescription == "Unavailable", "missing hardware is labelled")
+        expect(fallback.isAppleSilicon == false, "an Intel build is detected without sysctl")
+
+        let rosetta = DiagnosticsCollector(
+            info: [:],
+            operatingSystemVersion: { "" },
+            shortOperatingSystemVersion: { "" },
+            sysctlString: { _ in nil },
+            sysctlInt: { name in name == "sysctl.proc_translated" ? 1 : 0 },
+            architecture: "x86_64"
+        ).collect()
+        expect(rosetta.isTranslated == true, "Rosetta translation is detected")
+        expect(rosetta.architectureDescription.contains("Rosetta"),
+               "translated execution is labelled")
+
+        let manager = FeedbackManager(collector: DiagnosticsCollector(
+            info: ["CFBundleShortVersionString": "1.2.3", "CFBundleVersion": "42"],
+            operatingSystemVersion: { "Version 14.5 (Build 23F79)" },
+            shortOperatingSystemVersion: { "14.5" },
+            sysctlString: { name in name == "hw.model" ? "Mac15,6" : nil },
+            sysctlInt: { _ in nil },
+            architecture: "arm64"
+        ))
+        let report = manager.diagnosticText(diagnostics)
+        expect(report.contains("### Environment"), "the diagnostic block has a heading")
+        expect(report.contains("Tangent: 1.2.3 (42)"), "the diagnostic block shows version and build")
+        expect(report.contains("macOS: Version 14.5 (Build 23F79)"),
+               "the diagnostic block shows the macOS version")
+        expect(report.contains("Hardware: Mac15,6"), "the diagnostic block shows hardware")
+        expect(!report.contains(NSUserName()), "the report excludes the user name")
+        expect(!report.contains(FileManager.default.homeDirectoryForCurrentUser.path),
+               "the report excludes home paths")
+        expect(!report.lowercased().contains("serial"), "the report excludes serial numbers")
+        expect(!report.lowercased().contains("ip address"), "the report excludes IP addresses")
+
+        let title = manager.issueTitle(diagnostics)
+        expect(title.contains("1.2.3") && title.contains("42"),
+               "the issue title includes version and build")
+        expect(title.count <= 120, "the issue title stays within GitHub's limit")
+
+        let reportURL = manager.bugReportURL(title: "Bug — a & b")
+        let components = URLComponents(url: reportURL, resolvingAgainstBaseURL: false)
+        let items = components?.queryItems ?? []
+        expect(items.contains(URLQueryItem(name: "template", value: GitHubRepo.bugReportTemplate)),
+               "the issue URL preserves the bug-report template")
+        expect(items.contains(URLQueryItem(name: "title", value: "Bug — a & b")),
+               "the issue URL carries a properly encoded title")
+        expect(!items.contains(where: { $0.name == "body" }),
+               "the issue URL does not claim unsupported body prefill")
+        expect(reportURL.host == "github.com", "the issue URL stays on GitHub")
+        expect(FeedbackManager.privacyNote.contains("does not include"),
+               "the privacy note explains what is excluded")
+
         // MARK: Summary
 
         print("")
@@ -658,4 +1013,64 @@ enum SelfTests {
             return 1
         }
     }
+
+    /// A minimal release payload matching GitHub's REST response.
+    static func releaseJSON(tag: String) -> String {
+        """
+        {
+          "tag_name": "\(tag)",
+          "name": "Tangent \(tag)",
+          "html_url": "https://github.com/anuragdevcode/Tangent/releases/tag/\(tag)",
+          "published_at": "2026-10-01T00:00:00Z",
+          "prerelease": false,
+          "draft": false,
+          "assets": [
+            {
+              "name": "Tangent-universal.dmg",
+              "browser_download_url": "https://github.com/anuragdevcode/Tangent/releases/download/\(tag)/Tangent-universal.dmg",
+              "content_type": "application/x-apple-diskimage",
+              "size": 1048576
+            }
+          ]
+        }
+        """
+    }
+}
+
+// MARK: - Test doubles
+
+/// A URLProtocol that answers from a closure, so update-check tests never
+/// touch the network.
+private final class MockURLProtocol: URLProtocol {
+
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
+/// Holds values across the detached lookup task without actor hopping.
+private final class RequestBox: @unchecked Sendable {
+    var request: URLRequest?
+}
+
+private final class ResultBox: @unchecked Sendable {
+    var value: ReleaseLookupResult?
 }

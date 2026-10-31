@@ -376,11 +376,13 @@ final class AutomationPageView: NSView {
 
 final class AboutPageView: NSView {
 
-    init() {
+    private let content: AboutFeedbackPage
+
+    init(actions: AppActions) {
+        content = AboutFeedbackPage(centered: false, actions: actions)
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        let content = AboutContent.page(centered: false)
         let scroll = makePageScroll(content: content, maxWidth: 640)
         addSubview(scroll)
         NSLayoutConstraint.activate([
@@ -393,4 +395,9 @@ final class AboutPageView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
+
+    /// Refreshes update status without resetting the page's scroll position.
+    func apply(snapshot: AppSnapshot) {
+        content.apply(snapshot: snapshot)
+    }
 }

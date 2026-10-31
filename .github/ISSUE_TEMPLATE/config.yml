@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community & Discussions
+    url: https://github.com/anuragdevcode/Tangent/discussions
+    about: Share wallpapers, suggest features, or talk with other Tangent users.
+  - name: Tangent repository
+    url: https://github.com/anuragdevcode/Tangent
+    about: Read the source, documentation, and releases.

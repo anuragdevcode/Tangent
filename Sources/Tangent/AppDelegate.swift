@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var aboutWindow: AboutWindowController?
     private var popover: MenuBarPopoverController!
     private var actions: AppActions!
+    private let updates = UpdateChecker()
+    private let feedback = FeedbackManager()
 
     /// Set from the command line for scripted use and verification.
     var initialConfig: WallpaperConfig?
@@ -64,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions = makeActions()
         popover = MenuBarPopoverController(actions: actions)
         engine.onChange = { [weak self] in self?.engineDidChange() }
+        updates.onChange = { [weak self] in self?.updateStateDidChange() }
 
         playback.onPause = { [weak self] reason in self?.engine.pause(reason) }
         playback.onResume = { [weak self] reason in self?.engine.resume(reason) }
@@ -215,7 +218,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if snapshotPopoverPath != nil {
             schedulePopoverSnapshot()
+            return
         }
+
+        // Last, and only for an ordinary launch: scripted probes and snapshots
+        // must stay deterministic and offline. `checkIfNeeded()` itself is
+        // throttled, so reopening the app does not hammer the GitHub API.
+        updates.checkIfNeeded()
     }
 
     /// Exercises the same code path as the popover's forward button and
@@ -342,7 +351,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions.openAbout = { [weak self] in self?.showAbout() }
         actions.openProperties = { [weak self] pack in self?.showPropertiesFor(pack) }
         actions.quit = { NSApp.terminate(nil) }
+
+        actions.checkForUpdates = { [weak self] in self?.updates.check(force: true) }
+        actions.downloadUpdate = { [weak self] in self?.openUpdateDownload() }
+        actions.reportBug = { [weak self] in
+            guard let self else { return }
+            BugReportFlow.present(
+                manager: self.feedback,
+                from: self.aboutWindow?.window ?? self.settingsWindow?.window
+            )
+        }
+        actions.copyDiagnostics = { [weak self] in
+            guard let self else { return }
+            _ = self.feedback.copyDiagnostics(self.feedback.collectDiagnostics())
+        }
+        actions.shareFeedback = { [weak self] in self?.feedback.openDiscussions() }
+        actions.openRepository = { [weak self] in self?.feedback.openRepository() }
+        actions.openReleaseNotes = { [weak self] in self?.feedback.openReleases() }
         return actions
+    }
+
+    /// Opens a validated release download, or the release page when the
+    /// release has no unambiguous DMG. Never downloads or installs anything.
+    private func openUpdateDownload() {
+        if let url = updates.state.update?.downloadURL, ExternalLink.open(url) {
+            return
+        }
+        feedback.openReleases()
     }
 
     private func makeSnapshot() -> AppSnapshot {
@@ -359,6 +394,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshot.hotkeysEnabled = hotkeys.isEnabled
         snapshot.hotkeyStatus = hotkeys.statusDescription
         snapshot.statusDescription = engine.statusDescription
+        snapshot.updateState = updates.state
+        snapshot.lastUpdateCheck = updates.lastChecked
         snapshot.activeConfigs = engine.activeConfigs
         snapshot.displays = NSScreen.screens.map { screen in
             let id = DisplayIdentity.id(of: screen)
@@ -393,6 +430,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if settingsWindow?.window?.isVisible == true {
             settingsWindow?.reload()
+        }
+    }
+
+    /// Mirrors update-check progress into every surface that can show it. No
+    /// alerts and no window grabs: the state is simply redrawn in place.
+    private func updateStateDidChange() {
+        rebuildMenu()
+        if settingsWindow?.window?.isVisible == true {
+            settingsWindow?.reload()
+        }
+        if aboutWindow?.window?.isVisible == true {
+            aboutWindow?.reload()
+        }
+        if libraryWindow?.window?.isVisible == true {
+            libraryWindow?.applyUpdateState()
+        }
+        if popover?.isShown == true {
+            popover.reload()
         }
     }
 
@@ -445,6 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(displaysMenu())
         menu.addItem(playbackMenu())
         menu.addItem(hotkeysMenu())
+        menu.addItem(helpCommunityMenu())
 
         menu.addItem(.separator())
         menu.addItem(makeItem("Settings…", #selector(showSettings), key: ","))
@@ -625,6 +681,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
 
+    // MARK: - Help and community
+
+    /// The Help & Community submenu. Update availability is shown as the
+    /// update item's own title/state rather than as a separate alert or badge.
+    private func helpCommunityMenu() -> NSMenuItem {
+        let parent = NSMenuItem(title: "Help & Community", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+
+        let updateItem: NSMenuItem
+        if let update = updates.state.update {
+            updateItem = symbolItem(
+                "Check for Updates… (v\(update.version) available)",
+                #selector(checkForUpdatesAction),
+                symbol: "arrow.triangle.2.circlepath"
+            )
+        } else {
+            updateItem = symbolItem(
+                updates.isChecking ? "Checking for Updates…" : "Check for Updates…",
+                #selector(checkForUpdatesAction),
+                symbol: "arrow.triangle.2.circlepath"
+            )
+            updateItem.isEnabled = !updates.isChecking
+        }
+        submenu.addItem(updateItem)
+
+        if let update = updates.state.update {
+            let download = symbolItem(
+                "Download Tangent \(update.version)…",
+                #selector(downloadUpdateAction),
+                symbol: "arrow.down.circle.fill"
+            )
+            submenu.addItem(download)
+        }
+
+        submenu.addItem(.separator())
+        submenu.addItem(symbolItem(
+            "Report an Issue…",
+            #selector(reportIssueAction),
+            symbol: "ladybug"
+        ))
+        submenu.addItem(symbolItem(
+            "Community & Discussions",
+            #selector(openDiscussionsAction),
+            symbol: "bubble.left.and.bubble.right"
+        ))
+        submenu.addItem(symbolItem(
+            "Star Tangent on GitHub",
+            #selector(openRepositoryAction),
+            symbol: "star"
+        ))
+
+        parent.submenu = submenu
+        return parent
+    }
+
+    private func symbolItem(_ title: String, _ action: Selector, symbol: String) -> NSMenuItem {
+        let item = makeItem(title, action)
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        item.image?.isTemplate = true
+        return item
+    }
+
+    @objc private func checkForUpdatesAction() {
+        updates.check(force: true)
+    }
+
+    @objc private func downloadUpdateAction() {
+        openUpdateDownload()
+    }
+
+    @objc private func reportIssueAction() {
+        BugReportFlow.present(
+            manager: feedback,
+            from: aboutWindow?.window ?? settingsWindow?.window
+        )
+    }
+
+    @objc private func openDiscussionsAction() {
+        feedback.openDiscussions()
+    }
+
+    @objc private func openRepositoryAction() {
+        feedback.openRepository()
+    }
+
     // MARK: - Actions
 
     @objc private func showLibrary() {
@@ -648,7 +789,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAbout() {
         if aboutWindow == nil {
-            aboutWindow = AboutWindowController()
+            aboutWindow = AboutWindowController(actions: actions)
         }
         aboutWindow?.present()
     }

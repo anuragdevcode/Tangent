@@ -32,6 +32,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var bindingMessageLabel: NSTextField!
     private var recordingAction: HotkeyManager.Action?
     private var keyMonitor: Any?
+    private var aboutPage: AboutFeedbackPage?
 
     init(
         actions: AppActions,
@@ -113,7 +114,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         ])
 
         paneSelector = NSSegmentedControl(
-            labels: ["General", "Playback", "Shortcuts", "About"],
+            labels: ["General", "Playback", "Shortcuts", "About & Feedback"],
             trackingMode: .selectOne,
             target: self,
             action: #selector(paneChanged)
@@ -132,7 +133,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         NSLayoutConstraint.activate([
             paneSelector.topAnchor.constraint(equalTo: content.topAnchor, constant: 40),
             paneSelector.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            paneSelector.widthAnchor.constraint(equalToConstant: 390),
+            paneSelector.widthAnchor.constraint(equalToConstant: 440),
 
             paneContainer.topAnchor.constraint(equalTo: paneSelector.bottomAnchor, constant: 2),
             paneContainer.leadingAnchor.constraint(equalTo: content.leadingAnchor),
@@ -478,7 +479,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - About
 
     private func aboutPane() -> NSView {
-        wrapInPage(AboutContent.page(centered: true), maxWidth: 460)
+        let page = AboutFeedbackPage(centered: true, actions: actions)
+        aboutPage = page
+        return wrapInPage(page, maxWidth: 460)
     }
 
     // MARK: - Page scaffold
@@ -547,6 +550,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                     ?? "\(snapshot.statusDescription)."
             }
         }
+
+        aboutPage?.apply(snapshot: snapshot)
     }
 
     private func refreshHotkeyStatus() {

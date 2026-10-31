@@ -1,0 +1,54 @@
+name: Build and Release DMG
+
+on:
+  push:
+    tags:
+      - 'v*'          # runs when you push a tag like v0.4.1
+  workflow_dispatch:   # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write      # needed to publish a Release
+
+jobs:
+  build:
+    runs-on: macos-14  # Apple Silicon (M1) runner
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install mpv (build-time dependency)
+        run: brew install mpv
+
+      - name: Build app
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Read version from Info.plist
+        id: ver
+        run: |
+          V=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/Tangent.app/Contents/Info.plist)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Create DMG
+        run: |
+          mkdir dmg_staging
+          ditto build/Tangent.app dmg_staging/Tangent.app
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create -volname "Tangent" \
+            -srcfolder dmg_staging \
+            -ov -format UDZO \
+            "Tangent-${{ steps.ver.outputs.version }}-arm64.dmg"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tangent-dmg
+          path: "*.dmg"
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.dmg"
+          generate_release_notes: true

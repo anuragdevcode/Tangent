@@ -57,7 +57,9 @@ menu:
 - **Playback Rules ▸** — pause on fullscreen apps, battery or screen lock
 - **Hotkeys ▸** — turn global shortcuts on or off and see which registered;
   rebind them in Settings
-- **Settings…** (⌘,) — General, Playback, Shortcuts and About panes
+- **Help & Community ▸** — **Check for Updates…**, **Report an Issue…**,
+  **Community & Discussions** and **Star Tangent on GitHub**
+- **Settings…** (⌘,) — General, Playback, Shortcuts and About & Feedback panes
 - **Pause / Resume / Stop**
 
 The layout is saved and restored on the next launch.
@@ -213,8 +215,46 @@ combination, the rest still work and Settings names the unavailable action.
 - **Playback** — the three pause rules above
 - **Shortcuts** — enable/disable global shortcuts, click-to-record rebinding
   with conflict checks, reset-all, and registration status
-- **About** — version, bundle id, architecture, minimum macOS, video backends,
-  whether libmpv is bundled or external, and an in-app Ko-fi tip window
+- **About & Feedback** — live version/build, macOS and hardware information,
+  update status, help routes and community links, plus the in-app Ko-fi tip
+  window
+
+## Updates, diagnostics and community
+
+Tangent talks to one repository only: the official
+[`anuragdevcode/Tangent`](https://github.com/anuragdevcode/Tangent). The owner,
+name, release API, issue form, Discussions and repository URLs live in
+`Services/GitHubConfig.swift`.
+
+**Updates.** On an ordinary launch the app makes one conditional request to
+`https://api.github.com/repos/anuragdevcode/Tangent/releases/latest`, at most
+once every 24 hours. The last successful release and its `ETag` are cached, so a
+`304 Not Modified` can reuse them without another download. **Check for
+Updates…** bypasses the interval but never runs two requests at once. States are
+shown in place — Idle, Checking, Up to Date, Update Available, Offline, Rate
+Limited, Failed — never as an alert.
+
+Version tags are compared as semantic versions, with or without a leading `v`,
+including prerelease identifiers; build metadata is ignored for ordering.
+Drafts and prereleases are never advertised to a stable build. When a newer
+stable release exists, Tangent chooses a download in this order: a universal
+`.dmg`, a `.dmg` matching the current architecture, the only `.dmg` in the
+release, or the GitHub release page. It only opens that official URL; it never
+downloads, mounts, replaces or executes anything.
+
+**Diagnostics.** **Report an Issue…** shows a privacy preview first. The summary
+contains only the Tangent version and build, the macOS version, `hw.model`, the
+running architecture and Rosetta status when available. It never includes a
+serial number, Apple ID, username, home path, IP address, installed-app list or
+any file, and nothing is transmitted automatically. Because GitHub issue forms
+ignore prefilled `body` parameters, the link carries only the template and
+title; the summary is copied to the clipboard for the form's Diagnostics field.
+**Copy Diagnostics** is available separately without leaving the app.
+
+The form itself lives in
+[`.github/ISSUE_TEMPLATE/bug_report.yml`](.github/ISSUE_TEMPLATE/bug_report.yml).
+**Community & Discussions** opens the repository's Discussions page for
+wallpaper sharing, feature suggestions and general feedback.
 
 ## Scripted use
 
@@ -260,7 +300,7 @@ $BIN --ephemeral --probe-advance 2
 $BIN --snapshot-library /tmp/library.png
 $BIN --snapshot-library /tmp/gallery.png --gallery-search aurora --gallery-select 0
 $BIN --set ~/Wallpapers/aurora --snapshot-properties /tmp/properties.png
-$BIN --snapshot-settings /tmp/settings.png --settings-pane 2   # 0 General … 3 About
+$BIN --snapshot-settings /tmp/settings.png --settings-pane 2   # 0 General … 3 About & Feedback
 $BIN --snapshot-popover /tmp/popover.png
 
 # Headless machine/display report
@@ -309,14 +349,19 @@ Sources/Tangent/
   WallpaperStore.swift       layout persistence (with v1 migration)
   Playback/PlaybackMonitor.swift  fullscreen / battery / lock rules
   Hotkeys/HotkeyManager.swift     Carbon global shortcuts, rebinding, dispatch
+  Services/GitHubConfig.swift    official repository URLs and safe link opening
+  Services/ReleaseModel.swift    release models, semver, asset selection, update policy
+  Services/UpdateChecker.swift   conditional release lookup, cache, 24h schedule, states
+  Services/FeedbackManager.swift sysctl diagnostics, privacy summary, issue URL
   Packs/                     pack format, metadata/property parsing, library
                              scanning, thumbnails, JSON tree, property store
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
-                             popover, Settings, About, in-app Ko-fi support,
-                             control panel, theme and shared components
-  Diagnostics/SelfTests.swift     186-check compatibility suite
+                             popover, Settings, About & Feedback, in-app Ko-fi
+                             support, control panel, theme and shared components
+  Diagnostics/SelfTests.swift     278-check compatibility and service suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
+.github/ISSUE_TEMPLATE/      bug-report issue form and contact links
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
 build.sh
 ```
@@ -331,7 +376,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 186 checks` |
+| Compatibility suite (`--test`) | `PASS — 278 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
 | Version | `0.4.1` (build `5`) |
 | Binary | `sha256 4982319e636a9a6c1defe5b3f323b834946d4d6055fc5e0868c0da8a7d8636de`, arm64 |
@@ -341,7 +386,10 @@ Built and observed on an M2 running macOS 27.0.1:
 | Library additions | two videos in one folder stay two entries with distinct ids; adding a folder discovers the videos inside; 5 assertions |
 | App icon | `AppIcon.icns` uses the official mark full-bleed (1024 px, all sizes) and `CFBundleIconFile` names it; About and the popover use the same mark from `BrandMark.png` |
 | Menu bar popover (`--snapshot-popover`) | a stable `340×516` surface across runs: hero preview, one action row, one display row and the pause/mute switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
-| Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
+| Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About & Feedback render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
+| About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |
+| Update/diagnostics suite (`--test`) | semver with prereleases, drafts, asset selection, HTTP 304/403/404/429/500, offline errors, a mocked `URLSession` request, 24-hour scheduling, diagnostic fields/fallbacks/Rosetta, privacy exclusions and issue-URL encoding |
+| GitHub endpoint (`curl`) | `releases/latest` currently answers HTTP `404` because no release is published yet; the checker maps that to its non-intrusive “No published releases yet.” state |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
 | Inspector preview pill | keeps its `92×26` frame while the title flips **Preview** ↔ **Pause**, so the control never resizes mid-click |
 | Status capsules | keep their intrinsic width in the Settings playback card and the Automation page instead of stretching to fill the row |

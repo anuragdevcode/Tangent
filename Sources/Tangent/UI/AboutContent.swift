@@ -23,7 +23,7 @@ final class LinkButton: HoverButton {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
 
     @objc private func open() {
-        NSWorkspace.shared.open(url)
+        ExternalLink.open(url)
     }
 }
 
@@ -97,13 +97,16 @@ enum AboutContent {
         return row
     }
 
-    /// Key/value metadata used in About and Settings.
+    /// Key/value metadata used in About and Settings. Hardware facts come from
+    /// the same `DiagnosticsCollector` as bug reports, so the two never drift.
     static func details() -> NSView {
+        let diagnostics = DiagnosticsCollector().collect()
         let rows: [(String, String)] = [
-            ("Version", Format.version()),
-            ("Bundle", Bundle.main.bundleIdentifier ?? "app.tangent.wallpaper"),
-            ("Architecture", Format.architecture),
-            ("Minimum macOS", "13.0"),
+            ("Version", "\(diagnostics.appVersion) (\(diagnostics.buildNumber))"),
+            ("macOS", diagnostics.shortMacOSVersion),
+            ("Hardware", diagnostics.hardwareDescription),
+            ("Architecture", diagnostics.architectureDescription),
+            ("Compatibility", "macOS 13.0 or later"),
             ("Video", "AVFoundation + libmpv"),
             ("libmpv", Format.libmpv),
         ]
@@ -166,40 +169,6 @@ enum AboutContent {
 
         card.pin(content, insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))
         return card
-    }
-
-    /// Full page for the main window and Settings.
-    static func page(centered: Bool = true) -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        var views: [NSView] = [
-            centeredRow([mark()]),
-            titleBlock(centered: centered),
-            blurb(centered: centered),
-            primaryActions(),
-            spacing(14),
-            supportCard(),
-            spacing(6),
-            details(),
-            spacing(10),
-            licenseLine(centered: centered),
-        ]
-        if !centered {
-            views[0] = hstack([mark(size: 64), titleBlock(centered: false)], spacing: 16)
-            views.remove(at: 1)
-        }
-
-        let stack = vstack(views, spacing: Theme.Spacing.medium, alignment: centered ? .centerX : .leading)
-        stack.setCustomSpacing(18, after: views[0])
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        return container
     }
 }
 

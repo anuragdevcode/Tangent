@@ -3,10 +3,13 @@ import AppKit
 // MARK: - Links
 
 /// The few destinations the interface links to. Kept together so they can be
-/// changed without hunting through views.
+/// changed without hunting through views. GitHub destinations all come from
+/// `GitHubRepo`, the single source of truth for the official project.
 enum TangentLinks {
-    static let repository = URL(string: "https://github.com/anuragdevcode/Tangent")!
-    static let issues = URL(string: "https://github.com/anuragdevcode/Tangent/issues")!
+    static let repository = GitHubRepo.repository
+    static let issues = GitHubRepo.issues
+    static let discussions = GitHubRepo.discussions
+    static let releases = GitHubRepo.releases
     static let license = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
     static let support = URL(string: "https://ko-fi.com/anuragcodes")!
 }
@@ -119,6 +122,11 @@ struct AppSnapshot {
     var hotkeyStatus = ""
     var statusDescription = "No wallpaper set"
 
+    /// GitHub release state, mirrored from `UpdateChecker` so every surface
+    /// renders the same answer.
+    var updateState: UpdateState = .idle
+    var lastUpdateCheck: Date?
+
     var activeConfigs: [(screen: NSScreen, config: WallpaperConfig)] = []
 
     var isLive: Bool { defaultConfig != nil && !isPaused }
@@ -178,6 +186,15 @@ struct AppActions {
     var openAbout: () -> Void = {}
     var openProperties: (Pack?) -> Void = { _ in }
     var quit: () -> Void = {}
+
+    // Updates and community
+    var checkForUpdates: () -> Void = {}
+    var downloadUpdate: () -> Void = {}
+    var reportBug: () -> Void = {}
+    var copyDiagnostics: () -> Void = {}
+    var shareFeedback: () -> Void = {}
+    var openRepository: () -> Void = {}
+    var openReleaseNotes: () -> Void = {}
 
     static let preview = AppActions()
 }

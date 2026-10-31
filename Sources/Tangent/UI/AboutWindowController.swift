@@ -4,7 +4,10 @@ import AppKit
 /// but a dedicated window is what people expect from “About Tangent”.
 final class AboutWindowController: NSWindowController {
 
-    init() {
+    private let aboutPage: AboutFeedbackPage
+
+    init(actions: AppActions) {
+        aboutPage = AboutFeedbackPage(centered: true, actions: actions)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
             styleMask: [.titled, .closable, .fullSizeContentView],
@@ -24,7 +27,7 @@ final class AboutWindowController: NSWindowController {
         let background = VisualEffectView(material: .hudWindow, blending: .behindWindow)
         background.translatesAutoresizingMaskIntoConstraints = false
 
-        let content = AboutContent.page(centered: true)
+        let content = aboutPage
         let scroll = makePageScroll(content: content, maxWidth: 400)
         scroll.drawsBackground = false
 
@@ -44,8 +47,14 @@ final class AboutWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
 
     func present() {
+        reload()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Redraws the live update card without rebuilding the window.
+    func reload() {
+        aboutPage.reload()
     }
 }

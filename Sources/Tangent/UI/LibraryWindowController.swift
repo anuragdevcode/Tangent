@@ -636,6 +636,15 @@ final class LibraryWindowController: NSWindowController,
         updateGridMetrics()
     }
 
+    /// The About page owns the update card; keep it live without rebuilding
+    /// the page (and therefore without losing its scroll position).
+    func applyUpdateState() {
+        guard selectedSection == .about,
+              let page = currentPage as? AboutPageView
+        else { return }
+        page.apply(snapshot: actions.snapshot())
+    }
+
     private func updateNavigationCounts() {
         let packs = model.packs
         navRows[.all]?.setCount(packs.count)
@@ -855,7 +864,7 @@ final class LibraryWindowController: NSWindowController,
         case .automation:
             page = AutomationPageView(actions: actions, snapshot: snapshot)
         case .about:
-            page = AboutPageView()
+            page = AboutPageView(actions: actions)
         default:
             return
         }
