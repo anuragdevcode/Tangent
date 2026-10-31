@@ -9,3 +9,6 @@ build/
 *.swiftdoc
 .swiftpm/
 xcuserdata/
+
+dmg_staging/
+*.dmg
