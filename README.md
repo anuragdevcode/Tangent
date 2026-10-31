@@ -410,7 +410,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Automation desktop icons (`--snapshot-library --library-section 6`) | the **Shortcuts** card shows Global Shortcuts and Hide Desktop Icons in the same row style with the Finder-restart explanation; the busy-state disabling is covered by the service tests |
 | About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |
 | Update/diagnostics suite (`--test`) | semver with prereleases, drafts, asset selection, HTTP 304/403/404/429/500, offline errors, a mocked `URLSession` request, 24-hour scheduling, diagnostic fields/fallbacks/Rosetta, privacy exclusions and issue-URL encoding |
-| GitHub endpoint (`curl`) | `releases/latest` currently answers HTTP `404` because no release is published yet; the checker maps that to its non-intrusive “No published releases yet.” state |
+| GitHub endpoint (`curl`) | `releases/latest` resolves to `v0.5.0` and serves `Tangent-0.5.0-arm64.dmg`; the landing page's download CTAs use that exact asset URL |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
 | Inspector preview pill | keeps its `92×26` frame while the title flips **Preview** ↔ **Pause**, so the control never resizes mid-click |
 | Status capsules | keep their intrinsic width in the Settings playback card and the Automation page instead of stretching to fill the row |
