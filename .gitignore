@@ -12,3 +12,8 @@ xcuserdata/
 
 dmg_staging/
 *.dmg
+
+# Web dependencies and build outputs
+web/node_modules/
+web/dist/
+web/build/
