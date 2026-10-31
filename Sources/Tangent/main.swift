@@ -410,6 +410,12 @@ if let flagIndex = arguments.firstIndex(of: "--report-frames"),
     appDelegate.frameReportDelay = seconds
 }
 
+if let flagIndex = arguments.firstIndex(of: "--probe-advance"),
+   arguments.count > flagIndex + 1,
+   let seconds = Double(arguments[flagIndex + 1]) {
+    appDelegate.advanceProbeDelay = seconds
+}
+
 // Accessory: menu bar only, no Dock icon and no focus stealing.
 application.setActivationPolicy(.accessory)
 application.run()

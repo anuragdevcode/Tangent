@@ -49,7 +49,9 @@ menu:
   inspect and apply wallpapers
 - **Open Wallpaper…** (⌘O) — open a pack folder, a video, a GIF, an image or an
   `.html` file
-- **Next Wallpaper** — cycle through the library's playable packs
+- **Next Wallpaper** — advance the screen's wallpaper through the library's
+  playable packs; a display pinned with **Set for This Screen** advances its own
+  assignment
 - **Wallpaper Properties…** (⌘P) — adjust the active pack's controls live
 - **Displays ▸** — per-display assignment
 - **Playback Rules ▸** — pause on fullscreen apps, battery or screen lock
@@ -250,6 +252,10 @@ TANGENT_LIBMPV=/opt/homebrew/opt/mpv/lib/libmpv.2.dylib $BIN --probe-mpv loop.we
 # Apply a VP9 wallpaper, then print frames rendered by the desktop-level window
 $BIN --set Tests/Fixtures/media/vp9.webm --ephemeral --report-frames 4
 
+# Press Next Wallpaper once against the live layout and report every display's
+# wallpaper before and after, then quit (never saves)
+$BIN --ephemeral --probe-advance 2
+
 # Render the library window / control panel / Settings to PNGs (no Screen Recording permission)
 $BIN --snapshot-library /tmp/library.png
 $BIN --snapshot-library /tmp/gallery.png --gallery-search aurora --gallery-select 0
@@ -308,7 +314,7 @@ Sources/Tangent/
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About, in-app Ko-fi support,
                              control panel, theme and shared components
-  Diagnostics/SelfTests.swift     176-check compatibility suite
+  Diagnostics/SelfTests.swift     186-check compatibility suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
@@ -325,9 +331,10 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 176 checks` |
+| Compatibility suite (`--test`) | `PASS — 186 checks` |
+| Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 cf852546bfd1b04abdd791fb39a7091762e98c650688e5fd2ddd014ef9ffcbe3`, arm64 |
+| Binary | `sha256 4982319e636a9a6c1defe5b3f323b834946d4d6055fc5e0868c0da8a7d8636de`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |

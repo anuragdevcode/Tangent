@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var librarySectionIndex: Int?
     /// `--report-frames <seconds>`: print libmpv frame counters, then quit.
     var frameReportDelay: Double?
+    /// `--probe-advance <seconds>`: run one real Next Wallpaper step against the
+    /// live layout, report each display's wallpaper before and after, then quit.
+    var advanceProbeDelay: Double?
     /// Set by `--ephemeral` for scripted runs that must not replace the user's
     /// saved wallpaper.
     var persistSelection = true
@@ -205,8 +208,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
 
+        if let advanceProbeDelay {
+            probeAdvance(after: advanceProbeDelay)
+            return
+        }
+
         if snapshotPopoverPath != nil {
             schedulePopoverSnapshot()
+        }
+    }
+
+    /// Exercises the same code path as the popover's forward button and
+    /// `⌃⌥→`, then prints what every display resolved to. Used to verify that a
+    /// pinned display actually changes instead of silently keeping its pin.
+    private func probeAdvance(after delay: Double) {
+        let before = displayTitles()
+        // The probe is read-only even without `--ephemeral`.
+        let previous = persistSelection
+        persistSelection = false
+        nextWallpaper()
+        persistSelection = previous
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            let payload: [String: Any] = [
+                "before": before,
+                "after": self.displayTitles(),
+                "default": self.engine.layout.defaultConfig?.title ?? "",
+                "pins": self.engine.layout.pins.keys.sorted(),
+                "displays": self.engine.activeDisplayCount,
+            ]
+            if let data = try? JSONSerialization.data(
+                withJSONObject: payload,
+                options: [.sortedKeys]
+            ), let text = String(data: data, encoding: .utf8) {
+                print(text)
+            }
+            self.finishScriptedRun()
+        }
+    }
+
+    /// Title currently resolved for each connected display, in screen order.
+    private func displayTitles() -> [String] {
+        NSScreen.screens.map { screen in
+            engine.layout.config(for: DisplayIdentity.id(of: screen))?.title ?? "none"
         }
     }
 
@@ -650,26 +694,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nextWallpaper()
     }
 
-    /// Cycles through the library's playable wallpapers, starting from whichever
-    /// one is currently the default. Unsupported packs are skipped.
+    /// Cycles through the library's playable wallpapers, starting from what the
+    /// active screen is showing. Unsupported packs are skipped.
     private func nextWallpaper() {
-        guard let next = WallpaperCycler.next(
-            after: currentLibraryPack(),
-            in: libraryModel.packs
-        ) else {
+        // A display the user turned off has nothing to advance; fall back to
+        // the shared default so the visible screens still move on.
+        let displayID = activeScreen.map(DisplayIdentity.id(of:)).flatMap { id in
+            engine.layout.isDisabled(id) ? nil : id
+        }
+        let onScreen = displayID.flatMap { id in
+            libraryPack(for: engine.layout.config(for: id))
+        } ?? currentLibraryPack()
+
+        guard let next = WallpaperCycler.next(after: onScreen, in: libraryModel.packs) else {
             alert(
                 "No wallpapers to switch to",
                 "Add a playable wallpaper to the library first."
             )
             return
         }
-        apply(next)
+        apply(next, to: displayID)
     }
 
-    /// Matches the active default config back to its library tile by entry path,
-    /// which also works for bare files added to the library.
+    /// The screen the menu bar belongs to (where the pointer is, in practice),
+    /// falling back to the main display.
+    private var activeScreen: NSScreen? {
+        let point = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+    }
+
+    /// The wallpaper the user is actually looking at. A per-display pin can
+    /// override the shared default, so the default alone is not the truth.
     private func currentLibraryPack() -> Pack? {
-        guard let config = engine.layout.defaultConfig else { return nil }
+        let onScreen: WallpaperConfig? = activeScreen.flatMap { screen in
+            engine.layout.config(for: DisplayIdentity.id(of: screen))
+        }
+        return libraryPack(for: onScreen) ?? libraryPack(for: engine.layout.defaultConfig)
+    }
+
+    /// Matches a wallpaper config back to its library tile by entry path, which
+    /// also works for bare files added to the library.
+    private func libraryPack(for config: WallpaperConfig?) -> Pack? {
+        guard let config else { return nil }
         let current = config.entryURL.standardizedFileURL.path
         return libraryModel.packs.first {
             $0.entryURL?.standardizedFileURL.path == current
@@ -801,7 +869,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         apply(pack)
     }
 
-    private func apply(_ pack: Pack) {
+    private func apply(_ pack: Pack, to displayID: CGDirectDisplayID? = nil) {
         if let reason = pack.unsupportedReason {
             alert("Cannot use this wallpaper", reason)
             return
@@ -811,8 +879,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        engine.start(config: config)
-        guard engine.activeDisplayCount > 0 else {
+        if let displayID {
+            // Keep the display's own slot when it has one; otherwise this
+            // becomes the shared default, like Set for All Screens.
+            engine.assign(config, for: displayID)
+        } else {
+            engine.start(config: config)
+        }
+        let started = displayID.map(engine.isShowing) ?? (engine.activeDisplayCount > 0)
+        guard started else {
             alert(
                 "Could not start wallpaper",
                 "No display accepted the wallpaper. The file may use a codec AVFoundation cannot decode (see ARCHITECTURE.md)."

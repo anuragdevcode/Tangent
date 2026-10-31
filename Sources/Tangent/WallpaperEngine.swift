@@ -85,35 +85,54 @@ final class WallpaperEngine {
     /// whenever the display arrangement changes.
     func rebuildForScreens() {
         teardown()
-
         for screen in NSScreen.screens {
-            let displayID = DisplayIdentity.id(of: screen)
-            guard let config = layout.config(for: displayID), config.exists else { continue }
-            let forceMPV = forcedMPVPaths.contains(config.entryURL.standardizedFileURL.path)
-            guard let wallpaper = WallpaperFactory.make(config: config, forceMPV: forceMPV)
-            else { continue }
-
-            let window = WallpaperWindow(screen: screen)
-            let host = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
-            wallpaper.view.frame = host.bounds
-            wallpaper.view.autoresizingMask = [.width, .height]
-            host.addSubview(wallpaper.view)
-            window.contentView = host
-            window.orderFrontRegardless()
-
-            entries[displayID] = Entry(
-                window: window,
-                wallpaper: wallpaper,
-                rootFolder: config.rootFolder
-            )
-
-            if isPaused {
-                wallpaper.pause()
-            } else {
-                wallpaper.play()
-            }
+            install(config: layout.config(for: DisplayIdentity.id(of: screen)), on: screen)
         }
         onChange?()
+    }
+
+    /// Rebuilds a single display, leaving the others playing. Used when only
+    /// one display's wallpaper changed, so the rest do not restart.
+    private func rebuild(displayID: CGDirectDisplayID) {
+        if let entry = entries.removeValue(forKey: displayID) {
+            entry.wallpaper.close()
+            entry.window.orderOut(nil)
+            entry.window.close()
+        }
+        if let screen = NSScreen.screens.first(where: { DisplayIdentity.id(of: $0) == displayID }) {
+            install(config: layout.config(for: displayID), on: screen)
+        }
+        onChange?()
+    }
+
+    /// Creates the desktop-level window and player for one screen, if its
+    /// resolved config is playable.
+    private func install(config: WallpaperConfig?, on screen: NSScreen) {
+        guard let config, config.exists else { return }
+        let displayID = DisplayIdentity.id(of: screen)
+        let forceMPV = forcedMPVPaths.contains(config.entryURL.standardizedFileURL.path)
+        guard let wallpaper = WallpaperFactory.make(config: config, forceMPV: forceMPV)
+        else { return }
+
+        let window = WallpaperWindow(screen: screen)
+        let host = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
+        wallpaper.view.frame = host.bounds
+        wallpaper.view.autoresizingMask = [.width, .height]
+        host.addSubview(wallpaper.view)
+        window.contentView = host
+        window.orderFrontRegardless()
+
+        entries[displayID] = Entry(
+            window: window,
+            wallpaper: wallpaper,
+            rootFolder: config.rootFolder
+        )
+
+        if isPaused {
+            wallpaper.pause()
+        } else {
+            wallpaper.play()
+        }
     }
 
     // MARK: - Layout changes
@@ -121,6 +140,21 @@ final class WallpaperEngine {
     func pin(_ config: WallpaperConfig, for displayID: CGDirectDisplayID) {
         layout.pin(config, for: displayID)
         rebuildForScreens()
+    }
+
+    /// Updates the wallpaper this display is actually showing, whether that
+    /// comes from its pin or from the shared default. A pinned display is
+    /// rebuilt on its own so the other screens keep playing instead of
+    /// restarting from the first frame.
+    func assign(_ config: WallpaperConfig, for displayID: CGDirectDisplayID) {
+        let isPinned = layout.pins[DisplayIdentity.key(displayID)] != nil
+        layout.assign(config, for: displayID)
+        if isPinned {
+            rebuild(displayID: displayID)
+        } else {
+            // Unpinned displays share the default, so they all change.
+            rebuildForScreens()
+        }
     }
 
     func useDefault(for displayID: CGDirectDisplayID) {
@@ -132,6 +166,11 @@ final class WallpaperEngine {
     func disable(_ displayID: CGDirectDisplayID) {
         layout.disable(displayID)
         rebuildForScreens()
+    }
+
+    /// Whether this display currently has a live wallpaper window.
+    func isShowing(_ displayID: CGDirectDisplayID) -> Bool {
+        entries[displayID] != nil
     }
 
     func resetOverrides() {

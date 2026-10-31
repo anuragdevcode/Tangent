@@ -101,6 +101,11 @@ semantic versioning once it reaches 1.0.
   changes, instead of keeping the previous wallpaper's name and image.
 - The gallery's empty-state host no longer sits above the cards and swallows
   clicks and drops when the library is populated.
+- **Next Wallpaper** (the popover's forward button and `⌃⌥→`) now advances the
+  wallpaper actually on screen. A display pinned with **Set for This Screen**
+  used to keep its pin while the hidden default changed, so nothing moved. Only
+  the affected display is rebuilt, so other screens keep playing instead of
+  restarting from their first frame.
 
 ## [0.4.0] — 2026-10-27
 

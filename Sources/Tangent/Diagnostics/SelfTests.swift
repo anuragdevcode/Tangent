@@ -486,11 +486,44 @@ enum SelfTests {
 
         layout.disable(offID)
         expect(layout.config(for: offID) == nil, "disabled display shows nothing")
+        expect(layout.isDisabled(offID), "layout reports a disabled display")
+        expect(!layout.isDisabled(mainID), "other displays stay enabled")
         layout.enable(offID)
         expect(layout.config(for: offID)?.title == "Aurora Drift", "re-enabled display returns to default")
 
         layout.unpin(sideID)
         expect(layout.config(for: sideID)?.title == "Aurora Drift", "unpinned display follows the default")
+
+        // Next Wallpaper has to change what the display is actually showing,
+        // even when a pin is overriding the default.
+        var advance = DisplayLayout(defaultConfig: videoConfig)
+        advance.pin(pinnedConfig, for: sideID)
+        var nextConfig = videoConfig
+        nextConfig.title = "Next Wallpaper"
+        advance.assign(nextConfig, for: sideID)
+        expect(advance.config(for: sideID)?.title == "Next Wallpaper",
+               "a pinned display advances in place")
+        expect(advance.defaultConfig?.title == "Aurora Drift",
+               "advancing a pinned display keeps the default")
+        expect(advance.config(for: mainID)?.title == "Aurora Drift",
+               "other displays keep following the default")
+        advance.assign(nextConfig, for: mainID)
+        expect(advance.config(for: mainID)?.title == "Next Wallpaper",
+               "advancing an unpinned display updates the default")
+        expect(advance.defaultConfig?.title == "Next Wallpaper",
+               "the default follows an unpinned display")
+        var laterConfig = videoConfig
+        laterConfig.title = "Later Wallpaper"
+        advance.assign(laterConfig, for: mainID)
+        expect(advance.config(for: sideID)?.title == "Next Wallpaper",
+               "a later default change does not overwrite the pin")
+        expect(advance.config(for: sideID) != nil, "the pinned display still has a wallpaper")
+
+        // Next Wallpaper never re-enables a display the user turned off.
+        var offLayout = DisplayLayout(defaultConfig: videoConfig)
+        offLayout.disable(offID)
+        offLayout.assign(nextConfig, for: offID)
+        expect(offLayout.isDisabled(offID), "advancing a disabled display leaves it off")
 
         // Persistence round-trip, including the JSON key representation.
         let layoutStore = WallpaperStore(defaults: defaults)

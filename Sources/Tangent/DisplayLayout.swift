@@ -106,6 +106,19 @@ struct DisplayLayout: Codable, Equatable {
         pins.removeValue(forKey: DisplayIdentity.key(displayID))
     }
 
+    /// Replaces one display's wallpaper without disturbing the others. A pinned
+    /// display keeps its own slot; an unpinned display still follows the
+    /// default. Used by Next Wallpaper, which must change what is actually on
+    /// screen even when a pin is overriding the default.
+    mutating func assign(_ config: WallpaperConfig, for displayID: CGDirectDisplayID) {
+        let key = DisplayIdentity.key(displayID)
+        if pins[key] != nil {
+            pins[key] = config
+        } else {
+            defaultConfig = config
+        }
+    }
+
     mutating func disable(_ displayID: CGDirectDisplayID) {
         let key = DisplayIdentity.key(displayID)
         pins.removeValue(forKey: key)
@@ -114,6 +127,11 @@ struct DisplayLayout: Codable, Equatable {
 
     mutating func enable(_ displayID: CGDirectDisplayID) {
         disabled.removeAll { $0 == DisplayIdentity.key(displayID) }
+    }
+
+    /// Whether the user explicitly turned this display off.
+    func isDisabled(_ displayID: CGDirectDisplayID) -> Bool {
+        disabled.contains(DisplayIdentity.key(displayID))
     }
 
     mutating func resetOverrides() {

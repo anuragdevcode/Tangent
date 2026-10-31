@@ -241,7 +241,7 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 176 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 186 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling, and
 shortcut validation/persistence.
@@ -254,6 +254,7 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 | `--probe-mpv <file>` | decodes through libmpv and reports codec, size, frames, errors |
 | `--probe-kofi` | opens the real support window in a fresh session and reports title, login state and page text |
 | `--report-frames <seconds>` | counts frames rendered by the desktop-level window |
+| `--probe-advance <seconds>` | runs one Next Wallpaper step and reports each display's title before and after |
 | `--hotkey-status` | registers all bindings and reports status without saving |
 | `--snapshot-library` / `--snapshot-properties` / `--snapshot-settings` / `--snapshot-popover` | in-process PNG capture, no Screen Recording permission |
 | `--selftest` | architecture, screens, window levels, library path |
