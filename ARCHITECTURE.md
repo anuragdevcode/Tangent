@@ -78,7 +78,7 @@ crashing window manager.
 | `UI/MenuBarPopoverController.swift` | fixed 340 pt status-item popover: preview, actions, displays, switches, footer |
 | `UI/AppModel.swift` | `AppSnapshot` / `AppActions` interface between UI and shell |
 | `UI/Theme.swift` | colors, type scale, spacing, radii and animation tokens |
-| `UI/Components.swift` | themed surfaces, buttons, badges, labels and shared views |
+| `UI/Components.swift` | themed surfaces, buttons, badges, labels, the official brand mark and shared views |
 | `UI/AboutContent.swift` | shared About copy and controls |
 | `UI/KoFiSupport.swift` | Ko-fi-branded support button and the in-app `WKWebView` tip window |
 | `UI/AboutWindowController.swift` | standalone About window |
@@ -128,7 +128,8 @@ A pack is a directory. `PackInfo` reads the metadata file and resolves:
 
 A bare video, GIF, image or HTML file can also be opened directly; it is wrapped
 as a synthetic pack with `IsAbsolutePath` semantics, so every downstream
-component sees one shape.
+component sees one shape. Its identity (`Pack.id`) is the file path, not the
+containing folder, so several files in one folder remain distinct entries.
 
 `PackProperties` parses the optional control file into eight control types and
 produces the values pushed on load:
@@ -207,7 +208,9 @@ no SwiftPM, no SwiftUI macros:
 1. Detect architecture (`arm64` or `--universal`).
 2. Compile with `-O`, `-target <arch>-apple-macos13.0`, AppKit/WebKit/AVFoundation/
    CoreGraphics/Carbon/IOKit, and the libmpv header path.
-3. Assemble `Tangent.app` from `Resources/Info.plist` and the binary.
+3. Assemble `Tangent.app` from `Resources/Info.plist`, the binary and the icon
+   assets (`AppIcon.icns` for `CFBundleIconFile`, `BrandMark.png` for the About
+   and popover mark).
 4. Bundle the libmpv closure unless `TANGENT_BUNDLE_LIBMPV=0`.
 5. Ad-hoc sign inside out and verify.
 
@@ -238,7 +241,7 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 171 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 176 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling, and
 shortcut validation/persistence.

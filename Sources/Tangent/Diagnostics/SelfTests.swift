@@ -225,6 +225,49 @@ enum SelfTests {
             expect(false, "fixture pack available for hide/restore checks")
         }
 
+        // MARK: Multiple wallpapers in one folder
+
+        print("Library additions")
+        let addSuite = "tangent.tests.additions"
+        UserDefaults.standard.removePersistentDomain(forName: addSuite)
+        let addDefaults = UserDefaults(suiteName: addSuite)!
+        let dropFolder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tangent-test-drop", isDirectory: true)
+        try? FileManager.default.removeItem(at: dropFolder)
+        try? FileManager.default.createDirectory(at: dropFolder, withIntermediateDirectories: true)
+        let firstFile = dropFolder.appendingPathComponent("first.mp4")
+        let secondFile = dropFolder.appendingPathComponent("second.mp4")
+        let fixtureVideo = fixturesRoot.appendingPathComponent("library/aurora-video/aurora.mp4")
+        try? FileManager.default.copyItem(at: fixtureVideo, to: firstFile)
+        try? FileManager.default.copyItem(at: fixtureVideo, to: secondFile)
+
+        let addLibrary = PackLibrary(defaults: addDefaults, fallbackRoot: dropFolder)
+        let addModel = LibraryModel(library: addLibrary, defaults: addDefaults)
+        addModel.add(contentsOf: [firstFile, secondFile])
+        expect(addModel.packs.count == 2, "adds two files from one folder (got \(addModel.packs.count))")
+        expect(Set(addModel.packs.map(\.id)).count == 2, "each file keeps its own identity")
+        expect(addModel.packs.allSatisfy { $0.libraryEntry != dropFolder },
+               "a bare file is identified by the file, not its folder")
+
+        // Adding a plain folder adopts the videos inside it.
+        let folderRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tangent-test-folder", isDirectory: true)
+        try? FileManager.default.removeItem(at: folderRoot)
+        try? FileManager.default.createDirectory(at: folderRoot, withIntermediateDirectories: true)
+        try? FileManager.default.copyItem(at: fixtureVideo, to: folderRoot.appendingPathComponent("one.mp4"))
+        try? FileManager.default.copyItem(at: fixtureVideo, to: folderRoot.appendingPathComponent("two.mp4"))
+        let folderSuite = "tangent.tests.folder"
+        UserDefaults.standard.removePersistentDomain(forName: folderSuite)
+        let folderDefaults = UserDefaults(suiteName: folderSuite)!
+        let folderLibrary = PackLibrary(defaults: folderDefaults, fallbackRoot: folderRoot)
+        let folderModel = LibraryModel(library: folderLibrary, defaults: folderDefaults)
+        folderModel.add(contentsOf: [folderRoot])
+        expect(folderModel.packs.count == 2, "adding a folder discovers the videos inside")
+        expect(folderModel.packs.allSatisfy { $0.info.type == .video }, "discovered files keep their type")
+
+        try? FileManager.default.removeItem(at: dropFolder)
+        try? FileManager.default.removeItem(at: folderRoot)
+
         // MARK: Gallery query
 
         print("Gallery query")

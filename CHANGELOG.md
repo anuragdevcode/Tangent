@@ -37,6 +37,12 @@ semantic versioning once it reaches 1.0.
   because they only open the profile page or render blank outside ko-fi.com.
 - `--probe-kofi` opens that window in a fresh session and reports the page
   title, login state and visible text.
+- Adding wallpapers takes a whole selection: **Add Wallpaper…** selects several
+  files at once, and videos, images, GIFs, web pages or pack folders can be
+  dropped straight onto the gallery.
+- The official Tangent mark now ships as `Resources/BrandMark.png` for the About
+  and popover surfaces and as `Resources/AppIcon.icns` for the app icon, with a
+  drawn fallback when the artwork is not in the bundle.
 - Menu-bar shortcut labels reflect live bindings and mark customised actions.
 
 ### Changed
@@ -82,6 +88,19 @@ semantic versioning once it reaches 1.0.
   shows a stray caret at launch.
 - The compatibility suite scans a scratch root instead of the user's real
   library, so a locally installed wallpaper can no longer change its counts.
+- Two videos or images in the same folder no longer collapse into one library
+  entry: a bare file is identified by its own path, so each keeps its title,
+  thumbnail, favorite state and inspector preview. Removing one file also no
+  longer hides its whole folder, which had made every later add from that folder
+  invisible.
+- Gallery cards fill each row exactly, so the gaps between cards stay at the
+  16 pt layout spacing instead of being stretched by the flow layout.
+- Hovering a video card hides the still thumbnail before the `AVPlayerLayer`
+  starts, so the image no longer paints over the moving preview.
+- The inspector, popover and Settings playback card refresh when the engine
+  changes, instead of keeping the previous wallpaper's name and image.
+- The gallery's empty-state host no longer sits above the cards and swallows
+  clicks and drops when the library is populated.
 
 ## [0.4.0] — 2026-10-27
 

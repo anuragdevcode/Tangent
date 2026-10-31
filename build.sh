@@ -57,6 +57,8 @@ else
 fi
 
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp "$ROOT/Resources/BrandMark.png" "$APP/Contents/Resources/BrandMark.png"
 
 # Embed libmpv and its dylib closure so the app does not need Homebrew at
 # runtime. Set TANGENT_BUNDLE_LIBMPV=0 to keep the build lean while iterating.

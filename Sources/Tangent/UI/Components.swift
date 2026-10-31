@@ -683,12 +683,17 @@ final class BrandMarkView: NSView {
 
     private let gradient = CAGradientLayer()
     private let icon = NSImageView()
+    private let usesArtwork: Bool
 
     init(size: CGFloat = 64, symbol: String = "sparkles") {
+        let artwork = NSImage(named: "BrandMark")
+        usesArtwork = artwork != nil
         super.init(frame: NSRect(x: 0, y: 0, width: size, height: size))
         wantsLayer = true
         layer?.cornerCurve = .continuous
-        layer?.cornerRadius = size * 0.235
+        // The official artwork is already a rounded square; the drawn fallback
+        // needs the radius applied by the view.
+        layer?.cornerRadius = usesArtwork ? 0 : size * 0.235
         layer?.masksToBounds = true
 
         gradient.colors = [
@@ -699,11 +704,17 @@ final class BrandMarkView: NSView {
         ]
         gradient.startPoint = CGPoint(x: 0.1, y: 1)
         gradient.endPoint = CGPoint(x: 0.9, y: 0)
+        gradient.isHidden = usesArtwork
         layer?.addSublayer(gradient)
 
-        icon.image = Symbols.image(symbol, pointSize: size * 0.52, weight: .regular)
-        icon.contentTintColor = .white
-        icon.imageScaling = .scaleProportionallyUpOrDown
+        if let artwork {
+            icon.image = artwork
+            icon.imageScaling = .scaleAxesIndependently
+        } else {
+            icon.image = Symbols.image(symbol, pointSize: size * 0.52, weight: .regular)
+            icon.contentTintColor = .white
+            icon.imageScaling = .scaleProportionallyUpOrDown
+        }
         addSubview(icon)
 
         translatesAutoresizingMaskIntoConstraints = false
@@ -720,8 +731,12 @@ final class BrandMarkView: NSView {
         CATransaction.setDisableActions(true)
         gradient.frame = bounds
         CATransaction.commit()
-        let inset = bounds.width * 0.24
-        icon.frame = bounds.insetBy(dx: inset, dy: inset)
+        if usesArtwork {
+            icon.frame = bounds
+        } else {
+            let inset = bounds.width * 0.24
+            icon.frame = bounds.insetBy(dx: inset, dy: inset)
+        }
     }
 }
 

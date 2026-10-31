@@ -47,23 +47,33 @@ final class LibraryModel {
         onChange?()
     }
 
+    /// Adds one or more files and folders, reloading the gallery once at the
+    /// end. The Add panel and drag-and-drop both pass whole selections here so
+    /// dropping ten videos does not rescan the library ten times.
+    func add(contentsOf urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        for url in urls {
+            addToStore(url)
+        }
+        reload()
+    }
+
     func add(_ url: URL) {
+        add(contentsOf: [url])
+    }
+
+    private func addToStore(_ url: URL) {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return }
 
-        if isDirectory.boolValue {
-            let hasInfo = FileManager.default.fileExists(
-                atPath: url.appendingPathComponent(PackFormat.infoFile).path
-            )
-            if hasInfo {
-                library.addEntry(url)
-            } else {
-                library.addRoot(url)
-            }
+        if isDirectory.boolValue, Pack.synthetic(fileURL: url) == nil {
+            // A plain folder: treat it as a root and pick up the packs or loose
+            // wallpapers inside it.
+            library.addRoot(url)
         } else {
+            // A pack folder, a web folder or a bare file.
             library.addEntry(url)
         }
-        reload()
     }
 
     // MARK: - Favorites

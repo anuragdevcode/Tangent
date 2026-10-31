@@ -337,6 +337,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store.save(engine.layout)
         }
         rebuildMenu()
+        // The library inspector, the popover and the Settings playback card all
+        // read the engine snapshot; refresh the ones on screen so none can show
+        // the previous wallpaper after a switch. Closed windows refresh when
+        // they are presented again.
+        if libraryWindow?.window?.isVisible == true {
+            libraryWindow?.refresh()
+        }
+        if popover?.isShown == true {
+            popover?.reload()
+        }
+        if settingsWindow?.window?.isVisible == true {
+            settingsWindow?.reload()
+        }
     }
 
     /// Applies a wallpaper to the display under the pointer (the screen the
@@ -753,13 +766,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func pickWallpaperToAdd() {
         let panel = NSOpenPanel()
-        panel.title = "Add wallpaper to library"
+        panel.title = "Add wallpapers to library"
+        panel.message = "Choose videos, images, GIFs, web pages or wallpaper packs. You can select more than one."
         panel.allowsMultipleSelection = true
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return }
-        panel.urls.forEach { libraryModel.add($0) }
+        libraryModel.add(contentsOf: panel.urls)
+        libraryWindow?.showAllWallpapers()
     }
 
     private func pickFolderToScan() {

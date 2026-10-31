@@ -40,7 +40,7 @@ final class LibraryWindowController: NSWindowController,
     private var collectionView: GalleryCollectionView!
     private var gridLayout: NSCollectionViewFlowLayout!
     private var gridScroll: NSScrollView!
-    private var emptyHost: NSView!
+    private var emptyHost: EmptyStateHostView!
     private var hintBar: NSView!
 
     private var pageHost: NSView!
@@ -401,6 +401,9 @@ final class LibraryWindowController: NSWindowController,
             if !self.isInspectorVisible { self.setInspector(visible: true) }
             self.inspectorView.togglePreview()
         }
+        collectionView.onDropFiles = { [weak self] urls in
+            self?.acceptDroppedFiles(urls)
+        }
         collectionView.setAccessibilityLabel("Wallpaper gallery")
 
         gridScroll = NSScrollView()
@@ -413,8 +416,11 @@ final class LibraryWindowController: NSWindowController,
         gridScroll.documentView = collectionView
         gridScroll.translatesAutoresizingMaskIntoConstraints = false
 
-        emptyHost = NSView()
+        emptyHost = EmptyStateHostView()
         emptyHost.translatesAutoresizingMaskIntoConstraints = false
+        emptyHost.onDropFiles = { [weak self] urls in
+            self?.acceptDroppedFiles(urls)
+        }
 
         hintBar = NSView()
         hintBar.translatesAutoresizingMaskIntoConstraints = false
@@ -582,7 +588,26 @@ final class LibraryWindowController: NSWindowController,
 
     // MARK: - Refresh
 
-    private func refresh() {
+    /// Brings the whole library into view, so a newly added wallpaper is not
+    /// hidden behind a filter or a search.
+    func showAllWallpapers() {
+        if selectedSection != .all {
+            show(section: .all)
+        }
+        searchField.stringValue = ""
+        model.query.search = ""
+    }
+
+    /// Adds files dropped on the gallery.
+    private func acceptDroppedFiles(_ urls: [URL]) {
+        showAllWallpapers()
+        model.add(contentsOf: urls)
+    }
+
+    /// Re-reads the model, the engine snapshot and the grid metrics. Called on
+    /// library changes and again when the engine changes, so an open window
+    /// never shows a wallpaper that is no longer on the desktop.
+    func refresh() {
         snapshot = actions.snapshot()
         updateNavigationCounts()
         updateStatus(visible: selectedSection.isLibrary)
@@ -657,6 +682,9 @@ final class LibraryWindowController: NSWindowController,
 
     private func updateEmptyState(_ packs: [Pack]) {
         emptyHost.subviews.forEach { $0.removeFromSuperview() }
+        // The host sits above the gallery, so it must not swallow clicks or
+        // drags when there is nothing to show.
+        emptyHost.isHidden = !packs.isEmpty
         guard packs.isEmpty else { return }
 
         let hasPacks = !model.packs.isEmpty
@@ -722,12 +750,14 @@ final class LibraryWindowController: NSWindowController,
         let inset: CGFloat = 22
         let spacing: CGFloat = 16
         let minimum: CGFloat = 188
-        let maximum: CGFloat = 262
 
         let usable = available - inset * 2
         let columns = max(1, Int((usable + spacing) / (minimum + spacing)))
-        let width = min(maximum, floor((usable - CGFloat(columns - 1) * spacing) / CGFloat(columns)))
-        let previewHeight = (width - 10) * 10.0 / 16.0
+        // Fill the row exactly. A capped width leaves leftover space that the
+        // flow layout distributes between items, which is what made the gaps
+        // look uneven and too wide.
+        let width = floor((usable - CGFloat(columns - 1) * spacing) / CGFloat(columns))
+        let previewHeight = (width - 22) * 10.0 / 16.0
         let height = previewHeight + 64
 
         if abs(gridLayout.itemSize.width - width) > 0.5 || abs(gridLayout.itemSize.height - height) > 0.5 {
@@ -794,6 +824,7 @@ final class LibraryWindowController: NSWindowController,
             gridScroll.isHidden = true
             hintBar.isHidden = true
             emptyHost.subviews.forEach { $0.removeFromSuperview() }
+            emptyHost.isHidden = true
             pageHost.isHidden = false
             updateNavigationCounts()
             updateStatus(visible: false)
@@ -1011,6 +1042,36 @@ private final class GalleryCollectionView: NSCollectionView {
 
     var onActivate: (() -> Void)?
     var onPreview: (() -> Void)?
+    var onDropFiles: (([URL]) -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
+
+    // MARK: - Drag and drop
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        FileDrop.urls(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        FileDrop.urls(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        !FileDrop.urls(from: sender).isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = FileDrop.urls(from: sender)
+        guard !urls.isEmpty else { return false }
+        onDropFiles?(urls)
+        return true
+    }
 
     override func mouseDown(with event: NSEvent) {
         super.mouseDown(with: event)
@@ -1033,6 +1094,50 @@ private final class GalleryCollectionView: NSCollectionView {
     }
 
     override var acceptsFirstResponder: Bool { true }
+}
+
+/// The empty-state host sits on top of the gallery, so it has to accept drops
+/// too: an empty library is exactly when a drop is most useful.
+private final class EmptyStateHostView: NSView {
+
+    var onDropFiles: (([URL]) -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        FileDrop.urls(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        FileDrop.urls(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        !FileDrop.urls(from: sender).isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = FileDrop.urls(from: sender)
+        guard !urls.isEmpty else { return false }
+        onDropFiles?(urls)
+        return true
+    }
+}
+
+/// Reads file URLs out of a drag, ignoring anything else.
+private enum FileDrop {
+    static func urls(from sender: NSDraggingInfo) -> [URL] {
+        sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? []
+    }
 }
 
 // MARK: - Sidebar row

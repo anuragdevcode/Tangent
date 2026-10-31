@@ -64,9 +64,12 @@ The layout is saved and restored on the next launch.
 
 The library scans folders for wallpaper packs — a folder containing the pack's
 metadata file. Add packs individually, or point the library at a folder of
-packs. Folders are **referenced in place**: nothing is copied into the app, so a
-wallpaper you edit stays edited, and removing it from the library does not
-delete your files.
+packs. **Add Wallpaper…** accepts several files at once and the gallery accepts
+drops, so videos, images, GIFs, web pages and pack folders can all go in
+together. Bare files are tracked by their own path, which means two videos in
+one folder stay two wallpapers. Folders are **referenced in place**: nothing is
+copied into the app, so a wallpaper you edit stays edited, and removing it from
+the library does not delete your files.
 
 Default library folder: `~/Library/Application Support/Tangent/Library`
 
@@ -74,9 +77,10 @@ The gallery has a sidebar, an adaptive card grid and a collapsible inspector.
 The sidebar groups **All Wallpapers**, **Favorites**, **Video**, **Web** and
 **Images**, and carries the search field (title, author, summary, tags and folder
 name), the **Displays**, **Automation** and **About Tangent** pages, and a footer
-with Settings. The grid fits 16:10 cards to the window width; hovering lifts a
-card and starts a muted preview, and wallpapers currently on the desktop carry a
-glow badge. Double-click, press Return, or use the card's context menu to apply.
+with Settings. The grid fits 16:10 cards to the window width with even gutters;
+hovering lifts a card and starts a muted preview, and wallpapers currently on
+the desktop carry a glow badge. Double-click, press Return, or use the card's
+context menu to apply.
 **Space** toggles the inspector's live preview, **⌘1** returns to the library,
 **⌘2** opens Displays and **⌘,** opens Settings.
 
@@ -304,7 +308,7 @@ Sources/Tangent/
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About, in-app Ko-fi support,
                              control panel, theme and shared components
-  Diagnostics/SelfTests.swift     171-check compatibility suite
+  Diagnostics/SelfTests.swift     176-check compatibility suite
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
@@ -321,12 +325,14 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 171 checks` |
+| Compatibility suite (`--test`) | `PASS — 176 checks` |
 | Version | `0.4.1` (build `5`) |
-| Binary | `sha256 4e4fd8230caf08a8a0922803fcc348063b83ffdd0d19b5f14dcd91d7b83e5b53`, arm64 |
+| Binary | `sha256 cf852546bfd1b04abdd791fb39a7091762e98c650688e5fd2ddd014ef9ffcbe3`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
+| Library additions | two videos in one folder stay two entries with distinct ids; adding a folder discovers the videos inside; 5 assertions |
+| App icon | `AppIcon.icns` uses the official mark full-bleed (1024 px, all sizes) and `CFBundleIconFile` names it; About and the popover use the same mark from `BrandMark.png` |
 | Menu bar popover (`--snapshot-popover`) | a stable `340×516` surface across runs: hero preview, one action row, one display row and the pause/mute switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
 | Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |

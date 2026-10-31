@@ -104,7 +104,12 @@ struct Pack {
         folder.appendingPathComponent(PackFormat.propertiesFile)
     }
 
-    var id: String { folder.standardizedFileURL.path }
+    /// Stable identity for selection, thumbnails, favorites and hiding.
+    ///
+    /// A bare file would otherwise share its parent folder's path with every
+    /// other file in that folder, so two videos side by side would collapse
+    /// into one entry. Synthetic packs therefore identify by the file itself.
+    var id: String { libraryEntry.standardizedFileURL.path }
 
     /// Folder for a real pack, the file itself for synthetic ones.
     var libraryEntry: URL { libraryItem ?? folder }

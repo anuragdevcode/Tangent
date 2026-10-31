@@ -431,6 +431,8 @@ private final class CardPreviewView: NSView {
         player?.pause()
         playerLayer.player = nil
         playerLayer.isHidden = true
+        // The still is the fallback, so it comes back with the layer.
+        imageView.isHidden = false
         player = nil
         looper = nil
     }
@@ -443,6 +445,10 @@ private final class CardPreviewView: NSView {
         queue.actionAtItemEnd = .advance
         let loop = AVPlayerLooper(player: queue, templateItem: item)
         playerLayer.player = queue
+        // `playerLayer` is a sublayer, and AppKit keeps subview layers above
+        // sibling sublayers. Hiding the still makes the video the only thing
+        // the card draws while it plays.
+        imageView.isHidden = true
         playerLayer.isHidden = false
         queue.play()
         player = queue

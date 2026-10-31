@@ -167,7 +167,11 @@ final class WallpaperInspectorView: NSView {
     // MARK: - Content
 
     func update(pack: Pack?, snapshot: AppSnapshot, isFavorite: Bool) {
-        let changed = self.pack?.id != pack?.id
+        // Identity, not just the folder: two files can live in one folder and
+        // both must show their own name, preview and state.
+        let previous = self.pack
+        let changed = previous?.id != pack?.id
+            || previous?.entryURL?.standardizedFileURL != pack?.entryURL?.standardizedFileURL
         self.pack = pack
         self.snapshot = snapshot
         self.isFavorite = isFavorite
