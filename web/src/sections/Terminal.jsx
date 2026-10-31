@@ -13,7 +13,7 @@ const FLAGS = [
   ['--library', 'open the library window at launch'],
   ['--probe-mpv loop.webm', 'decode a codec stack and print frames'],
   ['--snapshot-library /tmp/lib.png', 'render the UI to PNG, no screen-recording perms'],
-  ['--test', 'the 167-check compatibility suite'],
+  ['--test', 'the 301-check compatibility suite'],
 ]
 
 export default function Terminal() {

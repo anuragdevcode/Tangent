@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { Download, Github, Cpu, MonitorDown, Scale } from 'lucide-react'
-import { RELEASES, REPO, LICENSE } from '../data/content.js'
+import { DOWNLOAD, RELEASES, REPO, LICENSE } from '../data/content.js'
 
 export default function GetStarted() {
   const reduce = useReducedMotion()
@@ -43,7 +43,7 @@ export default function GetStarted() {
           viewport={{ once: true, margin: '-12% 0px' }}
           transition={{ duration: 0.9, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
         >
-          <a className="btn btn--primary btn--lg" href={RELEASES} target="_blank" rel="noreferrer">
+          <a className="btn btn--primary btn--lg" href={DOWNLOAD} target="_blank" rel="noreferrer">
             <Download size={19} strokeWidth={2.6} />
             <span>Download Tangent</span>
           </a>

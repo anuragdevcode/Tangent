@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Github, Download, Menu, X, Coffee } from 'lucide-react'
-import { BRANDING, NAV_LINKS, REPO, RELEASES, KOFI, VERSION } from '../data/content.js'
+import { BRANDING, NAV_LINKS, REPO, DOWNLOAD, KOFI, VERSION } from '../data/content.js'
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -63,7 +63,7 @@ export default function Nav() {
           >
             <Github size={17} strokeWidth={2} />
           </a>
-          <a className="btn btn--primary btn--sm" href={RELEASES} target="_blank" rel="noreferrer" aria-label="Download Tangent">
+          <a className="btn btn--primary btn--sm" href={DOWNLOAD} target="_blank" rel="noreferrer" aria-label="Download Tangent">
             <Download size={15} strokeWidth={2.4} />
             <span>Download</span>
           </a>
@@ -96,7 +96,7 @@ export default function Nav() {
               </a>
             ))}
             <div className="nav-mobile-cta">
-              <a className="btn btn--primary" href={RELEASES} target="_blank" rel="noreferrer">
+              <a className="btn btn--primary" href={DOWNLOAD} target="_blank" rel="noreferrer">
                 <Download size={17} strokeWidth={2.4} />
                 <span>Download Tangent</span>
               </a>

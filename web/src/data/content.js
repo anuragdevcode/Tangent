@@ -9,7 +9,9 @@ export const ISSUES = `${REPO}/issues`
 export const LICENSE = `${REPO}/blob/main/LICENSE`
 export const KOFI = 'https://ko-fi.com/anuragcodes'
 
-export const VERSION = '0.4.1 (5)'
+export const VERSION = '0.5.0 (6)'
+export const RELEASE_TAG = 'v0.5.0'
+export const DOWNLOAD = `${REPO}/releases/download/${RELEASE_TAG}/Tangent-0.5.0-arm64.dmg`
 export const FAVICON = import.meta.env.BASE_URL + 'brand/favicon-128.png'
 
 export const asset = (p) => import.meta.env.BASE_URL + p

@@ -397,15 +397,15 @@ Built and observed on an M2 running macOS 27.0.1:
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
 | Compatibility suite (`--test`) | `PASS — 301 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
-| Version | `0.4.1` (build `5`) |
-| Binary | `sha256 4857fdf944df033bf780f209f9e37b07abbe866a97f1f4a5358267368fb55b88`, arm64 |
+| Version | `0.5.0` (build `6`) |
+| Binary | `sha256 69a991b34837743ea6c8043ac86ed2f8ef6a9ea93e0bacda3de0fb869fb98501`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
 | Library additions | two videos in one folder stay two entries with distinct ids; adding a folder discovers the videos inside; 5 assertions |
 | App icon | `AppIcon.icns` uses the official mark full-bleed (1024 px, all sizes) and `CFBundleIconFile` names it; About and the popover use the same mark from `BrandMark.png` |
 | Menu bar popover (`--snapshot-popover`) | a stable `340×559` surface across runs: hero preview, one action row, one display row and the pause/mute/desktop-icon switches; width stays `340` with a 512 pt thumbnail and a `(Main)` display name |
-| Desktop icons (`--test`) | 21 assertions cover read failure, write failure, busy/finish transitions, Finder-relaunch sequencing, hide/show round-tripping and refresh recovery; the real `defaults write/read com.apple.finder CreateDesktop` round-trip was checked and the original missing key restored |
+| Desktop icons (`--test`) | 23 assertions cover switch target/action wiring, read failure, write failure, busy/finish transitions, Finder-relaunch sequencing, hide/show round-tripping and refresh recovery; the real `defaults write/read com.apple.finder CreateDesktop` round-trip was checked and the original missing key restored |
 | Library sections (`--library-section 1/5/6/7`) | Favorites, Displays, Automation and About & Feedback render at the same window size; the inspector steps aside and the sidebar keeps its search placeholder |
 | Automation desktop icons (`--snapshot-library --library-section 6`) | the **Shortcuts** card shows Global Shortcuts and Hide Desktop Icons in the same row style with the Finder-restart explanation; the busy-state disabling is covered by the service tests |
 | About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |

@@ -3,8 +3,8 @@ import { Marquee, NumberTicker, SpotlightCard } from '../components/Fx.jsx'
 
 const STATS = [
   {
-    big: '167',
-    value: 167,
+    big: '301',
+    value: 301,
     small: 'automated compatibility checks parse packs, hotkeys, layouts and bridges — all passing',
   },
   {

@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion'
 import { Download, Github, ChevronDown, Coffee, Cpu } from 'lucide-react'
-import { RELEASES, REPO, KOFI, BRANDING, VERSION, MEDIA } from '../data/content.js'
+import { DOWNLOAD, REPO, KOFI, BRANDING, VERSION, MEDIA } from '../data/content.js'
 import { AmbientVideo } from '../components/Shared.jsx'
 import { Magnet } from '../components/Fx.jsx'
 
@@ -88,7 +88,7 @@ export default function Hero() {
           transition={{ duration: 1, delay: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
           <Magnet>
-            <a className="btn btn--primary btn--lg" href={RELEASES} target="_blank" rel="noreferrer">
+            <a className="btn btn--primary btn--lg" href={DOWNLOAD} target="_blank" rel="noreferrer">
               <Download size={19} strokeWidth={2.6} />
               <span>Download Tangent</span>
             </a>
