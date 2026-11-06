@@ -4,6 +4,38 @@ All notable changes to Tangent are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 semantic versioning once it reaches 1.0.
 
+## [0.6.0] — 2026-11-06
+
+### Added
+
+- **Screen Saver mode**. Tangent now builds and embeds a native
+  `Tangent.saver` alongside the app. Turning the switch on in **Settings ▸
+  General**, **Automation ▸ Screen Saver** or **Playback Rules ▸ Use as Screen
+  Saver** installs it in `~/Library/Screen Savers`, writes the current
+  per-display layout, and keeps that snapshot current whenever the desktop
+  wallpaper changes.
+- The saver reuses the app's video, image, GIF, web and libmpv players. Pinned
+  and disabled displays resolve exactly as they do on the desktop; playback is
+  always muted.
+- Turning Screen Saver mode off removes the installed bundle, and a failed
+  install removes the partial copy and leaves the switch off.
+- `--probe-update [version]` performs one real update check and reports the
+  decision, the published tag and the exact DMG URL it would open.
+
+### Changed
+
+- Tangent is now explicitly **Apple Silicon only**. The build targets
+  `arm64-apple-macos13.0`; the `--universal` mode and the Intel/x86_64 build
+  claims are gone.
+- The bundle now carries `Tangent.saver` in `Contents/Resources`, and the build
+  signs it before embedding it.
+- The automated suite grew to 321 checks, covering screen-saver configuration,
+  installation/removal and the arm64-only build.
+
+### Fixed
+
+- No functional regressions from 0.5.0; the screen-saver work is additive.
+
 ## [0.5.0] — 2026-10-31
 
 ### Added

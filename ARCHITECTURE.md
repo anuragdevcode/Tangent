@@ -215,6 +215,37 @@ accepts an injectable store so tests never change the real preference.
   and the open library page when it changes; there is no second stored flag to
   drift out of sync.
 
+## Screen Saver
+
+Screen Saver mode is a real legacy `.saver` bundle, not a full-screen window
+imitating one:
+
+- `ScreenSaver/TangentScreenSaverView.swift` subclasses `ScreenSaverView`. It is
+  compiled separately into `build/Tangent.saver/Contents/MacOS/TangentScreenSaver`
+  with `-Xlinker -bundle`, so the executable is a Mach-O bundle rather than a
+  dylib.
+- The bundle's `Info.plist` sets `NSPrincipalClass = TangentScreenSaverView`.
+  macOS instantiates one view per display inside its sandboxed
+  `legacyScreenSaver` process.
+- The saver links the same `WallpaperFactory`, `VideoWallpaper`, `ImageWallpaper`,
+  `WebWallpaper` and `MPVWallpaper` classes as the app. There is no second
+  renderer to drift out of sync.
+- The app writes `~/Library/Application Support/Tangent/ScreenSaver/config.json`
+  containing the whole `DisplayLayout` plus the path to the app's bundled
+  libmpv. The plugin reads it, resolves the wallpaper for its own display ID and
+  polls the file's modification date (throttled) so a live switch is reflected.
+- Screen savers run sandboxed, but macOS grants legacy savers a read-only
+  filesystem exception. The plugin derives the real home from its own bundle path
+  (`~/Library/Screen Savers/Tangent.saver`) instead of trusting the sandbox
+  container's `NSHomeDirectory()`.
+- `ScreenSaverService` owns the `~/Library/Screen Savers/Tangent.saver` copy and
+  the one persisted on/off flag. Enabling copies the embedded saver and writes
+  the config; disabling removes the copy. A failed install removes the partial
+  bundle and leaves the switch off.
+- Screen Saver playback is always muted. macOS owns the selected saver; Tangent
+  installs and removes its bundle but does not change the user's choice in
+  System Settings.
+
 ## Updates and diagnostics
 
 `GitHubRepo` is the only place the official project appears: owner
@@ -227,9 +258,8 @@ before opening anything.
 last release plus check date. It throttles ordinary launches to 24 hours,
 bypasses the interval only for an explicit check, and never runs two requests at
 once. `ReleaseModel` compares semantic versions (including prereleases), ignores
-drafts and prereleases for stable builds, and picks a universal DMG, an
-architecture-matching DMG, the only DMG, or the release page in that order.
-Nothing is downloaded, mounted, replaced or executed.
+drafts and prereleases for stable builds, and picks an arm64 DMG, the only DMG,
+or the release page. Nothing is downloaded, mounted, replaced or executed.
 
 `FeedbackManager` builds the diagnostic summary from the bundle version,
 `ProcessInfo`/`sysctl` fields and running architecture. It excludes serial
@@ -257,14 +287,18 @@ Accessibility or Input Monitoring permission.
 `build.sh` compiles every Swift file with `swiftc` directly — no Xcode project,
 no SwiftPM, no SwiftUI macros:
 
-1. Detect architecture (`arm64` or `--universal`).
-2. Compile with `-O`, `-target <arch>-apple-macos13.0`, AppKit/WebKit/AVFoundation/
-   CoreGraphics/Carbon/IOKit, and the libmpv header path.
+1. Compile the app for `arm64-apple-macos13.0`. Apple Silicon only: there is no
+   `--universal` mode and no x86_64 slice.
+2. Compile a second target, `Tangent.saver`, from the selected player and pack
+   sources with `-emit-library -Xlinker -bundle` and the `ScreenSaver`
+   framework, then sign it ad-hoc.
 3. Assemble `Tangent.app` from `Resources/Info.plist`, the binary and the icon
    assets (`AppIcon.icns` for `CFBundleIconFile`, `BrandMark.png` for the About
    and popover mark).
-4. Bundle the libmpv closure unless `TANGENT_BUNDLE_LIBMPV=0`.
-5. Ad-hoc sign inside out and verify.
+4. Embed `Tangent.saver` in `Contents/Resources` so Screen Saver mode can install
+   it without shipping source code or a compiler.
+5. Bundle the libmpv closure unless `TANGENT_BUNDLE_LIBMPV=0`.
+6. Ad-hoc sign inside out and verify.
 
 `MPV_PREFIX` overrides the build-time mpv prefix. `TANGENT_LIBMPV` overrides the
 runtime library and is exclusive — it is never combined with the bundled copy.
@@ -293,11 +327,12 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 301 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 321 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling,
 shortcut validation/persistence, GitHub release/update policy, diagnostics
-privacy, and the desktop-icon state machine.
+privacy, the desktop-icon state machine, Screen Saver config/storage and
+install/remove behaviour, and the arm64-only build.
 
 Runtime checks that cannot run in-process are exposed as CLI flags:
 
@@ -316,8 +351,8 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 
 1. Build libmpv/ffmpeg against the macOS 13 SDK to remove the 27.0 floor from
    bundled libraries.
-2. Add an `x86_64` libmpv closure for Intel machines.
-3. Remote/HLS `videostream` playback.
-4. Host audio feed for audio-reactive packs (ScreenCaptureKit or CoreAudio tap).
-5. Per-display property copies.
-6. Developer ID signing and notarization.
+2. Remote/HLS `videostream` playback.
+3. Host audio feed for audio-reactive packs (ScreenCaptureKit or CoreAudio tap).
+4. Per-display property copies.
+5. Developer ID signing and notarization.
+6. Optional screen-saver configuration sheet and per-display saver overrides.

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateChecker()
     private let feedback = FeedbackManager()
     private let desktopIcons = DesktopIcons()
+    private let screenSaver = ScreenSaverService()
 
     /// Set from the command line for scripted use and verification.
     var initialConfig: WallpaperConfig?
@@ -69,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.onChange = { [weak self] in self?.engineDidChange() }
         updates.onChange = { [weak self] in self?.updateStateDidChange() }
         desktopIcons.onChange = { [weak self] in self?.desktopIconsDidChange() }
+        screenSaver.onChange = { [weak self] in self?.screenSaverDidChange() }
 
         playback.onPause = { [weak self] reason in self?.engine.pause(reason) }
         playback.onResume = { [weak self] reason in self?.engine.resume(reason) }
@@ -226,6 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Last, and only for an ordinary launch: scripted probes and snapshots
         // must stay deterministic and offline. `checkIfNeeded()` itself is
         // throttled, so reopening the app does not hammer the GitHub API.
+        screenSaver.synchronize(makeScreenSaverConfiguration())
         updates.checkIfNeeded()
     }
 
@@ -341,6 +344,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, !self.desktopIcons.isBusy else { return }
             self.desktopIcons.refresh()
         }
+        actions.setScreenSaverEnabled = { [weak self] enabled in
+            guard let self else { return }
+            self.screenSaver.setEnabled(
+                enabled,
+                configuration: self.makeScreenSaverConfiguration()
+            )
+        }
 
         actions.useDefaultForDisplay = { [weak self] id in
             self?.engine.useDefault(for: id)
@@ -405,6 +415,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshot.statusDescription = engine.statusDescription
         snapshot.desktopIconsState = desktopIcons.state
         snapshot.desktopIconsBusy = desktopIcons.isBusy
+        snapshot.screenSaverEnabled = screenSaver.isEnabled
+        snapshot.screenSaverInstalled = screenSaver.isInstalled
+        snapshot.screenSaverBusy = screenSaver.isBusy
+        snapshot.screenSaverStatus = screenSaver.statusDescription
+        snapshot.screenSaverError = screenSaver.lastError
         snapshot.updateState = updates.state
         snapshot.lastUpdateCheck = updates.lastChecked
         snapshot.activeConfigs = engine.activeConfigs
@@ -428,6 +443,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if persistSelection, engine.hasWallpaper {
             store.save(engine.layout)
         }
+        // The screen saver is a separate process; keep its snapshot current as
+        // soon as the layout changes instead of waiting for the next launch.
+        screenSaver.synchronize(makeScreenSaverConfiguration())
         rebuildMenu()
         // The library inspector, the popover and the Settings playback card all
         // read the engine snapshot; refresh the ones on screen so none can show
@@ -471,6 +489,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover?.isShown == true {
             popover?.reload()
         }
+    }
+
+    /// Mirrors screen-saver installation state into Settings, Automation and
+    /// the menu bar. The plugin itself is refreshed by `engineDidChange`.
+    private func screenSaverDidChange() {
+        rebuildMenu()
+        if libraryWindow?.window?.isVisible == true {
+            libraryWindow?.refresh()
+        }
+        if settingsWindow?.window?.isVisible == true {
+            settingsWindow?.reload()
+        }
+        if popover?.isShown == true {
+            popover?.reload()
+        }
+    }
+
+    /// The snapshot written for the plugin. It reuses the live layout so pins
+    /// and disabled displays behave exactly as they do on the desktop.
+    private func makeScreenSaverConfiguration() -> ScreenSaverConfiguration {
+        var libmpvPath: String?
+        let candidates: [String]
+        if let frameworks = Bundle.main.privateFrameworksURL {
+            candidates = [frameworks.appendingPathComponent("libmpv.2.dylib").path]
+        } else {
+            candidates = []
+        }
+        let fallbacks = [
+            "/opt/homebrew/opt/mpv/lib/libmpv.2.dylib",
+            "/opt/homebrew/lib/libmpv.2.dylib",
+        ]
+        libmpvPath = (candidates + fallbacks).first {
+            FileManager.default.fileExists(atPath: $0)
+        }
+        return ScreenSaverConfiguration(layout: engine.layout, libmpvPath: libmpvPath)
     }
 
     /// Applies a wallpaper to the display under the pointer (the screen the
@@ -646,6 +699,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #selector(toggleLockRule),
             on: policy.pauseOnLock
         ))
+
+        submenu.addItem(.separator())
+        let saver = NSMenuItem(
+            title: "Use as Screen Saver",
+            action: #selector(toggleScreenSaver),
+            keyEquivalent: ""
+        )
+        saver.target = self
+        saver.state = screenSaver.isEnabled ? .on : .off
+        saver.toolTip = "Install Tangent in ~/Library/Screen Savers and keep it in sync with the desktop."
+        submenu.addItem(saver)
 
         parent.submenu = submenu
         return parent
@@ -1135,6 +1199,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.pauseOnLock.toggle()
         playback.setPolicy(policy)
         rebuildMenu()
+    }
+
+    @objc private func toggleScreenSaver() {
+        let enabled = !screenSaver.isEnabled
+        screenSaver.setEnabled(enabled, configuration: makeScreenSaverConfiguration())
+        rebuildMenu()
+        if let error = screenSaver.lastError {
+            alert("Could not update the screen saver", error)
+        }
     }
 
     @objc private func quit() {

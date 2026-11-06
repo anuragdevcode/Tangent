@@ -127,6 +127,13 @@ struct AppSnapshot {
     var desktopIconsState: DesktopIcons.State = .visible
     var desktopIconsBusy = false
 
+    /// Screen Saver mode, mirrored from `ScreenSaverService`.
+    var screenSaverEnabled = false
+    var screenSaverInstalled = false
+    var screenSaverBusy = false
+    var screenSaverStatus = ""
+    var screenSaverError: String?
+
     /// GitHub release state, mirrored from `UpdateChecker` so every surface
     /// renders the same answer.
     var updateState: UpdateState = .idle
@@ -181,6 +188,7 @@ struct AppActions {
     var setHotkeysEnabled: (Bool) -> Void = { _ in }
     var setDesktopIconsHidden: (Bool) -> Void = { _ in }
     var refreshDesktopIcons: () -> Void = {}
+    var setScreenSaverEnabled: (Bool) -> Void = { _ in }
 
     // Displays
     var useDefaultForDisplay: (CGDirectDisplayID) -> Void = { _ in }
@@ -260,7 +268,7 @@ enum Format {
     }
 
     static func version() -> String {
-        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.5.0"
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.6.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(short) (\(build))"
     }

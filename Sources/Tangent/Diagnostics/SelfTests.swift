@@ -1093,6 +1093,107 @@ enum SelfTests {
         expect(unreadableIcons.state == .hidden,
                "refreshing recovers the real Finder setting")
 
+        // MARK: Screen saver
+
+        print("Screen saver")
+        expect(ScreenSaverStorage.homeDirectory(
+            forSaverBundle: URL(fileURLWithPath: "/Users/example/Library/Screen Savers/Tangent.saver")
+        )?.path == "/Users/example", "the plugin derives the real home from its bundle path")
+        expect(ScreenSaverStorage.homeDirectory(
+            forSaverBundle: URL(fileURLWithPath: "/tmp/Tangent.saver")
+        ) == nil, "a bundle outside Screen Savers reports no home")
+
+        let saverHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tangent-saver-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: saverHome) }
+        let fakeSaver = saverHome
+            .appendingPathComponent("Build", isDirectory: true)
+            .appendingPathComponent(ScreenSaverStorage.bundleName, isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: fakeSaver.appendingPathComponent("Contents/MacOS", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(
+            atPath: fakeSaver.appendingPathComponent("Contents/MacOS/TangentScreenSaver").path,
+            contents: Data("test".utf8)
+        )
+
+        let saverLayout = DisplayLayout(
+            defaultConfig: videoConfig,
+            pins: ["2": videoConfig],
+            disabled: ["3"]
+        )
+        let saverConfiguration = ScreenSaverConfiguration(
+            layout: saverLayout,
+            libmpvPath: "/tmp/libmpv.2.dylib"
+        )
+        expect(saverConfiguration.wallpaper(forDisplayID: 1)?.title == videoConfig.title,
+               "a display without an override uses the default wallpaper")
+        expect(saverConfiguration.wallpaper(forDisplayID: 2)?.title == videoConfig.title,
+               "a pinned display resolves its own wallpaper")
+        expect(saverConfiguration.wallpaper(forDisplayID: 3) == nil,
+               "a disabled display stays off in the screen saver")
+        expect(saverConfiguration.wallpaper(forDisplayID: 99)?.title == videoConfig.title,
+               "an unknown display falls back to the default wallpaper")
+
+        let saverSuiteName = "tests.screensaver.\(UUID().uuidString)"
+        let saverDefaults = UserDefaults(suiteName: saverSuiteName)!
+        defer { saverDefaults.removePersistentDomain(forName: saverSuiteName) }
+        let service = ScreenSaverService(
+            defaults: saverDefaults,
+            homeDirectory: saverHome,
+            bundledSaverURL: fakeSaver
+        )
+        expect(!service.isEnabled && !service.isInstalled,
+               "screen saver mode starts off and uninstalled")
+        expect(service.setEnabled(true, configuration: saverConfiguration),
+               "enabling screen saver mode installs the bundle")
+        expect(service.isEnabled && service.isInstalled,
+               "the service reports an installed screen saver")
+        expect(FileManager.default.fileExists(atPath: service.installedURL.path),
+               "Tangent.saver lands in ~/Library/Screen Savers")
+        expect(service.installedURL.path.hasPrefix(saverHome.path),
+               "the installed bundle stays inside the user's home")
+        expect(service.configurationURL.path.contains("Application Support/Tangent/ScreenSaver"),
+               "the plugin config lives under Application Support")
+        let savedSaver = ScreenSaverStorage(homeDirectory: saverHome).load()
+        expect(savedSaver?.layout == saverLayout, "the plugin config round-trips the layout")
+        expect(savedSaver?.libmpvPath == "/tmp/libmpv.2.dylib", "the plugin config carries the libmpv path")
+
+        expect(service.setEnabled(false, configuration: saverConfiguration),
+               "disabling screen saver mode removes the bundle")
+        expect(!service.isEnabled && !service.isInstalled,
+               "screen saver mode is off after removal")
+
+        let missingSuiteName = "tests.screensaver.\(UUID().uuidString)"
+        let missingDefaults = UserDefaults(suiteName: missingSuiteName)!
+        defer { missingDefaults.removePersistentDomain(forName: missingSuiteName) }
+        let missing = ScreenSaverService(
+            defaults: missingDefaults,
+            homeDirectory: saverHome,
+            bundledSaverURL: saverHome.appendingPathComponent("Missing.saver")
+        )
+        expect(!missing.setEnabled(true, configuration: saverConfiguration),
+               "a missing bundled saver fails instead of pretending")
+        expect(!missing.isEnabled && !missing.isInstalled,
+               "a failed install leaves the switch off")
+        expect(missing.lastError?.contains("does not contain") == true,
+               "a missing bundled saver is explained")
+
+        expect(Format.architecture == "Apple Silicon",
+               "the app is built for Apple Silicon (arm64)")
+
+        let embeddedSaver = Bundle.main.resourceURL?
+            .appendingPathComponent(ScreenSaverStorage.bundleName, isDirectory: true)
+        expect(embeddedSaver.map { FileManager.default.fileExists(atPath: $0.path) } == true,
+               "the app bundle embeds Tangent.saver")
+        let saverInfo = embeddedSaver
+            .flatMap { NSDictionary(contentsOf: $0.appendingPathComponent("Contents/Info.plist")) }
+        expect(saverInfo?["NSPrincipalClass"] as? String == "TangentScreenSaverView",
+               "the embedded saver names its principal class")
+        expect(saverInfo?["CFBundlePackageType"] as? String == "BNDL",
+               "the embedded saver is a bundle")
+
         // MARK: Summary
 
         print("")

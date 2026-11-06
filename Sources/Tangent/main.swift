@@ -293,9 +293,88 @@ private func runKoFiProbe(snapshotPath: String?) -> Never {
     exit(report["ok"] as? Bool == true ? 0 : 1)
 }
 
+// MARK: - Update probe
+
+/// Performs one real, unauthenticated update check and prints the decision.
+/// An optional version argument simulates an older install.
+private func runUpdateProbe(installedVersion: String) -> Never {
+    var payload: [String: Any] = [
+        "installed": installedVersion,
+        "ok": false,
+    ]
+    let installed = ReleaseVersion(installedVersion) ?? ReleaseVersion(major: 0)
+    let semaphore = DispatchSemaphore(value: 0)
+
+    Task.detached {
+        let result = await ReleaseLookup(version: installedVersion).latest(etag: nil)
+        switch result {
+        case .release(let release, _):
+            let decision = UpdateDecision.evaluate(release: release, installed: installed)
+            payload["tag"] = release.tagName
+            payload["draft"] = release.draft
+            payload["prerelease"] = release.prerelease
+            payload["assets"] = release.assets.map(\.name)
+            payload["releasePage"] = release.htmlURL
+            switch decision {
+            case .updateAvailable(let update):
+                payload["state"] = "updateAvailable"
+                payload["version"] = update.version.description
+                payload["assetURL"] = update.assetURL?.absoluteString ?? ""
+                payload["ok"] = update.assetURL != nil
+            case .upToDate:
+                payload["state"] = "upToDate"
+                payload["ok"] = true
+            case .offline:
+                payload["state"] = "offline"
+            case .rateLimited:
+                payload["state"] = "rateLimited"
+            case .failed(let message):
+                payload["state"] = "failed"
+                payload["error"] = message
+            case .idle, .checking:
+                payload["state"] = "idle"
+            }
+        case .notModified:
+            payload["state"] = "notModified"
+            payload["ok"] = true
+        case .noRelease:
+            payload["state"] = "noRelease"
+        case .rateLimited:
+            payload["state"] = "rateLimited"
+        case .offline:
+            payload["state"] = "offline"
+        case .failed:
+            payload["state"] = "failed"
+        }
+        semaphore.signal()
+    }
+
+    let finished = semaphore.wait(timeout: .now() + 30) == .success
+    if !finished {
+        payload["state"] = "timeout"
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+       let text = String(data: data, encoding: .utf8) {
+        print(text)
+    }
+    exit(payload["ok"] as? Bool == true ? 0 : 1)
+}
+
 // MARK: - Entry point
 
 let arguments = CommandLine.arguments
+
+#if !arch(arm64)
+FileHandle.standardError.write(Data("Tangent requires an Apple Silicon Mac (M1 or newer).\n".utf8))
+exit(4)
+#endif
+
+if let flagIndex = arguments.firstIndex(of: "--probe-update") {
+    let version = arguments.count > flagIndex + 1 && !arguments[flagIndex + 1].hasPrefix("--")
+        ? arguments[flagIndex + 1]
+        : UpdateChecker.installedVersion
+    runUpdateProbe(installedVersion: version)
+}
 
 if let flagIndex = arguments.firstIndex(of: "--probe-bridge"), arguments.count > flagIndex + 1 {
     runBridgeProbe(folderPath: arguments[flagIndex + 1])

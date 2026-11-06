@@ -31,6 +31,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var hotkeyButtons: [HotkeyManager.Action: HoverButton] = [:]
     private var bindingMessageLabel: NSTextField!
     private var recordingAction: HotkeyManager.Action?
+    private var screenSaverSwitch: NSSwitch!
+    private var screenSaverStatusLabel: NSTextField!
     private var keyMonitor: Any?
     private var aboutPage: AboutFeedbackPage?
 
@@ -224,6 +226,29 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             trailing: trailingLabel(libraryPathLabel)
         )
 
+        screenSaverSwitch = makeSwitch { [weak self] isOn in
+            self?.actions.setScreenSaverEnabled(isOn)
+            self?.refresh()
+        }
+        screenSaverSwitch.setAccessibilityLabel("Use Tangent as Screen Saver")
+        let screenSaverSection = GroupedSection(
+            title: "Screen Saver",
+            rows: [
+                SettingsRow(
+                    symbol: "display",
+                    title: "Use Tangent as Screen Saver",
+                    subtitle: "Installs Tangent.saver and keeps it in sync with the desktop layout.",
+                    trailing: screenSaverSwitch
+                ),
+            ]
+        )
+        screenSaverStatusLabel = makeWrappingLabel(
+            "",
+            font: Theme.caption,
+            color: .secondaryLabelColor
+        )
+        screenSaverStatusLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
         let actionsSection = GroupedSection(
             title: "Manage",
             rows: [
@@ -252,11 +277,21 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         note.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
 
         let stack = vstack(
-            [header, spacing(6), librarySection, folderRow, actionsSection, note],
+            [
+                header,
+                spacing(6),
+                librarySection,
+                folderRow,
+                screenSaverSection,
+                screenSaverStatusLabel,
+                actionsSection,
+                note,
+            ],
             spacing: Theme.Spacing.regular
         )
         stack.setCustomSpacing(20, after: header)
-        for wide in [librarySection, folderRow, actionsSection] {
+        stack.setCustomSpacing(6, after: screenSaverSection)
+        for wide in [librarySection, folderRow, screenSaverSection, actionsSection] {
             wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
@@ -534,6 +569,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             ? ""
             : Format.count(snapshot.hiddenCount, singular: "hidden")
         restoreButton?.isEnabled = snapshot.hiddenCount > 0
+
+        let saverOn = snapshot.screenSaverEnabled && snapshot.screenSaverInstalled
+        screenSaverSwitch?.state = saverOn ? .on : .off
+        screenSaverSwitch?.isEnabled = !snapshot.screenSaverBusy
+        if snapshot.screenSaverError != nil {
+            screenSaverStatusLabel?.textColor = .systemOrange
+        } else {
+            screenSaverStatusLabel?.textColor = .secondaryLabelColor
+        }
+        screenSaverStatusLabel?.stringValue = snapshot.screenSaverStatus
 
         if let statusPill, let statusTitle, let statusDetail {
             if snapshot.defaultConfig == nil {

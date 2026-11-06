@@ -249,6 +249,22 @@ final class AutomationPageView: NSView {
         return "Hide every item on the desktop. Finder restarts briefly."
     }
 
+    private var screenSaverDescription: String {
+        if snapshot.screenSaverBusy {
+            return "Installing Tangent.saver…"
+        }
+        if let failure = snapshot.screenSaverError {
+            return "Couldn’t update the screen saver. \(failure)"
+        }
+        if snapshot.screenSaverEnabled && snapshot.screenSaverInstalled {
+            return "Installed. Choose Tangent in System Settings ▸ Screen Saver."
+        }
+        if snapshot.screenSaverEnabled {
+            return "Enabled, but Tangent.saver is missing. Turn this off and on to reinstall."
+        }
+        return "Show the active wallpaper when your Mac is idle, then pick Tangent in System Settings."
+    }
+
     private func build() {
         let title = makeLabel("Automation", font: Theme.windowTitle)
         let subtitle = makeWrappingLabel(
@@ -323,6 +339,25 @@ final class AutomationPageView: NSView {
             rows: [hotkeyRow, HairlineView(), desktopIconsRow]
         )
 
+        let screenSaverToggle = toggle(
+            isOn: snapshot.screenSaverEnabled && snapshot.screenSaverInstalled
+        ) { [weak self] isOn in
+            self?.actions.setScreenSaverEnabled(isOn)
+        }
+        screenSaverToggle.isEnabled = !snapshot.screenSaverBusy
+        screenSaverToggle.setAccessibilityLabel("Use Tangent as Screen Saver")
+        let screenSaver = GroupedSection(
+            title: "Screen Saver",
+            rows: [
+                SettingsRow(
+                    symbol: "display",
+                    title: "Use Tangent as Screen Saver",
+                    subtitle: screenSaverDescription,
+                    trailing: screenSaverToggle
+                ),
+            ]
+        )
+
         let statusCard = CardView()
         statusCard.fillColor = Theme.cardFill
         statusCard.translatesAutoresizingMaskIntoConstraints = false
@@ -368,11 +403,11 @@ final class AutomationPageView: NSView {
         footer.widthAnchor.constraint(lessThanOrEqualToConstant: 620).isActive = true
 
         let stack = vstack(
-            [title, subtitle, spacing(6), statusCard, rules, hotkeys, footer],
+            [title, subtitle, spacing(6), statusCard, rules, hotkeys, screenSaver, footer],
             spacing: Theme.Spacing.medium
         )
         stack.setCustomSpacing(18, after: subtitle)
-        for wide in [statusCard, rules, hotkeys] {
+        for wide in [statusCard, rules, hotkeys, screenSaver] {
             wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 

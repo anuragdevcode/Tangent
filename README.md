@@ -13,6 +13,9 @@ assignments, playback rules and live controls.
   four-pane Settings window, all built with AppKit only.
 - A desktop-icon switch in the popover and Automation page, so the wallpaper can
   take the whole desktop without touching any files.
+- **Screen Saver mode**: installs a native `Tangent.saver`, mirrors the live
+  per-display layout, and can be switched off again from Settings, Automation or
+  the menu bar.
 
 ## Requirements
 
@@ -27,12 +30,13 @@ assignments, playback rules and live controls.
 ## Build
 
 ```bash
-./build.sh              # arm64 native
-./build.sh --universal  # arm64 + x86_64
+./build.sh              # arm64 native (M-series only)
 ```
 
 Output: `build/Tangent.app` (~63 MB, of which ~61 MB is the bundled libmpv
-closure and codecs).
+closure and codecs) plus the embedded `Tangent.saver` used by Screen Saver mode.
+The build refuses to target anything except `arm64-apple-macos13.0`; Intel Macs
+are not supported.
 
 `TANGENT_BUNDLE_LIBMPV=0 ./build.sh` skips bundling for a quick ~2 MB build that
 uses Homebrew's libmpv at runtime.
@@ -56,7 +60,8 @@ mute and desktop icons. From the menu:
   assignment
 - **Wallpaper Properties…** (⌘P) — adjust the active pack's controls live
 - **Displays ▸** — per-display assignment
-- **Playback Rules ▸** — pause on fullscreen apps, battery or screen lock
+- **Playback Rules ▸** — pause on fullscreen apps, battery or screen lock, plus
+  the **Use as Screen Saver** switch
 - **Hotkeys ▸** — turn global shortcuts on or off and see which registered;
   rebind them in Settings
 - **Help & Community ▸** — **Check for Updates…**, **Report an Issue…**,
@@ -65,6 +70,19 @@ mute and desktop icons. From the menu:
 - **Pause / Resume / Stop**
 
 The layout is saved and restored on the next launch.
+
+## Screen Saver
+
+Turn on **Use Tangent as Screen Saver** in Settings ▸ General, Automation ▸
+Screen Saver, or **Playback Rules ▸ Use as Screen Saver**. Tangent copies its
+native `Tangent.saver` into `~/Library/Screen Savers` and writes the current
+per-display layout to Application Support. The plugin reads that snapshot while
+it runs, so pinned and disabled displays behave exactly as they do on the
+desktop, and changing a wallpaper updates the screen saver without reinstalling.
+
+Select **Tangent** once under **System Settings ▸ Screen Saver**. Turning the
+switch off removes the installed bundle and leaves the rest of your Saver
+settings untouched.
 
 ## Library
 
@@ -254,10 +272,9 @@ Limited, Failed — never as an alert.
 Version tags are compared as semantic versions, with or without a leading `v`,
 including prerelease identifiers; build metadata is ignored for ordering.
 Drafts and prereleases are never advertised to a stable build. When a newer
-stable release exists, Tangent chooses a download in this order: a universal
-`.dmg`, a `.dmg` matching the current architecture, the only `.dmg` in the
-release, or the GitHub release page. It only opens that official URL; it never
-downloads, mounts, replaces or executes anything.
+stable release exists, Tangent picks an arm64 `.dmg`, then the only `.dmg` in
+the release, or the GitHub release page. It only opens that official URL; it
+never downloads, mounts, replaces or executes anything.
 
 **Diagnostics.** **Report an Issue…** shows a privacy preview first. The summary
 contains only the Tangent version and build, the macOS version, `hw.model`, the
@@ -288,8 +305,12 @@ $BIN --set ~/Wallpapers/aurora --display 2 --ephemeral
 $BIN --library
 
 # Compatibility test suite (parsers, bridge payloads, library, gallery, hotkeys,
-# layouts, releases, diagnostics and desktop icons)
+# layouts, releases, diagnostics, desktop icons and Screen Saver)
 $BIN --test
+
+# Perform one real update check against GitHub. Pass a version to simulate an
+# older install; prints the decision and the exact DMG URL it would open.
+$BIN --probe-update 0.5.0
 
 # Prove all four shortcuts register; does not change the saved preference
 $BIN --hotkey-status
@@ -372,14 +393,17 @@ Sources/Tangent/
   Services/UpdateChecker.swift   conditional release lookup, cache, 24h schedule, states
   Services/FeedbackManager.swift sysctl diagnostics, privacy summary, issue URL
   Services/DesktopIcons.swift    Finder desktop-icon preference and relaunch
+  ScreenSaver/               plugin config hand-off and bundle install service
   Packs/                     pack format, metadata/property parsing, library
                              scanning, thumbnails, JSON tree, property store
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About & Feedback, in-app Ko-fi
                              support, control panel, theme and shared components
-  Diagnostics/SelfTests.swift     301-check compatibility and service suite
+  Diagnostics/SelfTests.swift     321-check compatibility and service suite
+ScreenSaver/TangentScreenSaverView.swift  the .saver principal class
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
+Resources/TangentSaver-Info.plist  .saver bundle metadata
 .github/ISSUE_TEMPLATE/      bug-report issue form and contact links
 Scripts/bundle-libmpv.py     copies and rewrites the libmpv dylib closure
 build.sh
@@ -395,7 +419,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 301 checks` |
+| Compatibility suite (`--test`) | `PASS — 324 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
 | Version | `0.5.0` (build `6`) |
 | Binary | `sha256 69a991b34837743ea6c8043ac86ed2f8ef6a9ea93e0bacda3de0fb869fb98501`, arm64 |
@@ -433,7 +457,10 @@ Built and observed on an M2 running macOS 27.0.1:
 | Bundled libmpv | `--probe-mpv` reports `library` = `Tangent.app/Contents/Frameworks/libmpv.2.dylib` |
 | Homebrew-independent | with `/opt/homebrew/opt/mpv/lib/libmpv.2.dylib` moved away: VP9 probe 11 frames, AV1 desktop 91 frames, H.264 wallpaper still at layer `-2147483622` |
 | libmpv missing | `TANGENT_LIBMPV` override to a missing path reports the install hint and fails; the app still runs H.264/HEVC |
-| Universal build | `x86_64 arm64` executable; bundled libmpv is `arm64` only, with a build-time warning |
+| Apple Silicon only | the executable is `arm64`; `--universal` is gone and the build targets `arm64-apple-macos13.0` |
+| Screen Saver bundle | `Tangent.saver` is arm64, ad-hoc signed, reports `NSPrincipalClass = TangentScreenSaverView`, and loads/instantiates through `NSBundle` |
+| Screen Saver playback | a copied `Tangent.saver` reads a real config, resolves the display's wallpaper, starts a `LayerHostView` (H.264 fixture) and removes it on `stopAnimation` |
+| Screen Saver toggle | enabling installs `~/Library/Screen Savers/Tangent.saver` and writes the layout; disabling removes it; a missing bundled saver fails without leaving the switch on |
 | Unsupported pack | exits `3` with the Windows-reparenting reason |
 | Display layout | default/pin/disable/reset, `UserDefaults` round-trip, v1 migration |
 
@@ -445,8 +472,6 @@ Built and observed on an M2 running macOS 27.0.1:
   plays while VP9/AV1 needs a libmpv built with an older deployment target
   (`TANGENT_LIBMPV=/path/to/libmpv.2.dylib`). Removing the floor requires
   rebuilding mpv/ffmpeg from source against the older SDK.
-- **The `x86_64` slice has no libmpv.** `--universal` bundles the arm64 Homebrew
-  dylibs, so under Rosetta the app can play H.264/HEVC but not VP9/AV1.
 - **No spanning.** Displays are separate Spaces-backed screens; one wallpaper
   cannot stretch across two monitors. Per-display wallpapers are supported
   instead.
@@ -459,7 +484,12 @@ Built and observed on an M2 running macOS 27.0.1:
 - **Global shortcuts require Control or Option.** Shift-only and Command-only
   combinations are rejected so a global binding cannot shadow ordinary menu
   shortcuts. Shortcuts are off by default.
-- **No screensaver** and no visual metadata editor.
+- **No screensaver audio.** Screen Saver mode always mutes playback, even when
+  the active wallpaper is unmuted on the desktop.
+- **Screen Saver selection is manual.** Tangent installs and removes the bundle,
+  but macOS keeps the selected saver in System Settings; the app cannot select
+  itself there without private APIs.
+- **No visual metadata editor.**
 - Video wallpapers are muted by default.
 - Ad-hoc signed. Distributing to other machines needs Developer ID +
   notarization.

@@ -1,20 +1,45 @@
 #!/bin/bash
 #
 # Builds Tangent.app for Apple Silicon.
-#   ./build.sh              -> arm64 only (M1/M2/M3/M4/M5...)
-#   ./build.sh --universal  -> arm64 + x86_64 fat binary
+#   ./build.sh -> arm64 only (M1/M2/M3/M4/M5...)
+#
+# Also builds Tangent.saver and embeds it in the app, so Screen Saver mode can
+# install it without shipping source code or a compiler to users.
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/build/Tangent.app"
 BIN="$APP/Contents/MacOS/Tangent"
+SAVER="$ROOT/build/Tangent.saver"
+SAVER_BIN="$SAVER/Contents/MacOS/TangentScreenSaver"
 MIN_MACOS="13.0"
+TARGET="arm64-apple-macos${MIN_MACOS}"
 MPV_PREFIX="${MPV_PREFIX:-/opt/homebrew/opt/mpv}"
 BUNDLE_LIBMPV="${TANGENT_BUNDLE_LIBMPV:-1}"
 BRIDGING_HEADER="$ROOT/Resources/Tangent-Bridging-Header.h"
 SOURCES=()
-while IFS= read -r file; do SOURCES+=("$file"); done < <(find "$ROOT/Sources" -name "*.swift" | sort)
+while IFS= read -r file; do SOURCES+=("$file"); done < <(find "$ROOT/Sources/Tangent" -name "*.swift" | sort)
+
+# The saver deliberately links only the players and pack plumbing it needs.
+SAVER_SOURCES=(
+	"$ROOT/Sources/Tangent/DisplayLayout.swift"
+	"$ROOT/Sources/Tangent/Wallpaper.swift"
+	"$ROOT/Sources/Tangent/VideoWallpaper.swift"
+	"$ROOT/Sources/Tangent/VideoRouting.swift"
+	"$ROOT/Sources/Tangent/ImageWallpaper.swift"
+	"$ROOT/Sources/Tangent/WebWallpaper.swift"
+	"$ROOT/Sources/Tangent/MPVWallpaper.swift"
+	"$ROOT/Sources/Tangent/MPVAPI.swift"
+	"$ROOT/Sources/Tangent/Packs/JSONValue.swift"
+	"$ROOT/Sources/Tangent/Packs/PackFormat.swift"
+	"$ROOT/Sources/Tangent/Packs/PackInfo.swift"
+	"$ROOT/Sources/Tangent/Packs/PackProperties.swift"
+	"$ROOT/Sources/Tangent/Packs/PropertyStore.swift"
+	"$ROOT/Sources/Tangent/Packs/WallpaperType.swift"
+	"$ROOT/Sources/Tangent/ScreenSaver/ScreenSaverConfiguration.swift"
+	"$ROOT/ScreenSaver/TangentScreenSaverView.swift"
+)
 
 if [[ ! -f "$MPV_PREFIX/include/mpv/client.h" ]]; then
 	echo "error: libmpv headers not found at $MPV_PREFIX" >&2
@@ -33,28 +58,56 @@ FRAMEWORKS=(
 	-framework Carbon
 )
 
-compile() { # $1 = target arch, $2 = output path
+SAVER_FRAMEWORKS=(
+	-framework AppKit
+	-framework AVFoundation
+	-framework WebKit
+	-framework QuartzCore
+	-framework IOKit
+	-framework OpenGL
+	-framework ScreenSaver
+)
+
+compile() { # $1 = output path
 	swiftc -O -swift-version 5 \
-		-target "$1-apple-macos${MIN_MACOS}" \
+		-target "$TARGET" \
 		-I"$MPV_PREFIX/include" \
 		-import-objc-header "$BRIDGING_HEADER" \
 		"${FRAMEWORKS[@]}" \
-		-o "$2" \
+		-o "$1" \
 		"${SOURCES[@]}"
+}
+
+build_saver() {
+	rm -rf "$SAVER"
+	mkdir -p "$SAVER/Contents/MacOS" "$SAVER/Contents/Resources"
+
+	swiftc -O -swift-version 5 -emit-library -Xlinker -bundle \
+		-target "$TARGET" \
+		-I"$MPV_PREFIX/include" \
+		-import-objc-header "$BRIDGING_HEADER" \
+		"${SAVER_FRAMEWORKS[@]}" \
+		-o "$SAVER_BIN" \
+		"${SAVER_SOURCES[@]}"
+
+	cp "$ROOT/Resources/TangentSaver-Info.plist" "$SAVER/Contents/Info.plist"
+	# A thumbnail keeps Tangent recognisable in System Settings. The brand mark
+	# is square, so pad it rather than stretch it.
+	if [[ -f "$ROOT/Resources/BrandMark.png" ]]; then
+		sips -s format png "$ROOT/Resources/BrandMark.png" \
+			--resampleHeightWidth 116 116 \
+			--out "$SAVER/Contents/Resources/thumbnail.png" >/dev/null 2>&1 || true
+	fi
+
+	codesign --force --sign - "$SAVER" >/dev/null
 }
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-if [[ "${1:-}" == "--universal" ]]; then
-	TMP="$(mktemp -d)"
-	trap 'rm -rf "$TMP"' EXIT
-	compile arm64 "$TMP/arm64"
-	compile x86_64 "$TMP/x86_64"
-	lipo -create "$TMP/arm64" "$TMP/x86_64" -output "$BIN"
-else
-	compile arm64 "$BIN"
-fi
+compile "$BIN"
+build_saver
+cp -R "$SAVER" "$APP/Contents/Resources/Tangent.saver"
 
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -67,11 +120,6 @@ if [[ "$BUNDLE_LIBMPV" != "0" ]]; then
 		--app "$APP" \
 		--prefix "$MPV_PREFIX" \
 		--quiet
-
-	MPV_ARCHS="$(lipo -archs "$APP/Contents/Frameworks/libmpv.2.dylib" 2>/dev/null || echo unknown)"
-	if [[ "${1:-}" == "--universal" && "$MPV_ARCHS" != *"x86_64"* ]]; then
-		echo "note: bundled libmpv is $MPV_ARCHS only; the x86_64 slice can play H.264/HEVC but not VP9/AV1" >&2
-	fi
 fi
 
 # Ad-hoc signature: enough to run locally. Replace with a Developer ID for
