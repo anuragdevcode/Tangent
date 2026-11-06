@@ -5,20 +5,20 @@ import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion
 /* AmbientVideo — muted, looping wallpaper footage that only decodes   */
 /* while it is on screen (and stays frozen for reduced-motion users)   */
 /* ------------------------------------------------------------------ */
-export function AmbientVideo({ className, src, poster, preload = 'metadata' }) {
+export function AmbientVideo({ className, src, poster, preload = 'metadata', paused = false }) {
   const ref = useRef(null)
 
   useEffect(() => {
     const video = ref.current
     if (!video) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduce) {
+    if (reduce || paused) {
       video.pause()
       return
     }
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting && !paused) {
           video.play().catch(() => {})
         } else {
           video.pause()
@@ -28,7 +28,7 @@ export function AmbientVideo({ className, src, poster, preload = 'metadata' }) {
     )
     io.observe(video)
     return () => io.disconnect()
-  }, [])
+  }, [paused])
 
   return (
     <video

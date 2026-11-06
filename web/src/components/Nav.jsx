@@ -6,6 +6,7 @@ import { BRANDING, NAV_LINKS, REPO, DOWNLOAD, KOFI, VERSION } from '../data/cont
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState('')
   const reduce = useReducedMotion()
 
   useEffect(() => {
@@ -14,7 +15,26 @@ export default function Nav() {
       if (ticking) return
       ticking = true
       requestAnimationFrame(() => {
-        setScrolled(window.scrollY > 24)
+        const y = window.scrollY
+        setScrolled(y > 24)
+
+        // Track current section in view
+        if (y < 260) {
+          setActiveSection('')
+        } else {
+          let found = ''
+          for (const link of NAV_LINKS) {
+            const el = document.querySelector(link.href)
+            if (el) {
+              const rect = el.getBoundingClientRect()
+              if (rect.top <= window.innerHeight * 0.4 && rect.bottom >= window.innerHeight * 0.15) {
+                found = link.href
+              }
+            }
+          }
+          if (found) setActiveSection(found)
+        }
+
         ticking = false
       })
     }
@@ -43,7 +63,11 @@ export default function Nav() {
 
         <nav className="nav-links" aria-label="Page sections">
           {NAV_LINKS.map((l) => (
-            <a key={l.href} href={l.href}>
+            <a
+              key={l.href}
+              href={l.href}
+              className={activeSection === l.href ? 'is-active' : ''}
+            >
               {l.label}
             </a>
           ))}
@@ -92,7 +116,12 @@ export default function Nav() {
             data-native-scroll
           >
             {NAV_LINKS.map((l) => (
-              <a key={l.href} href={l.href} onClick={close}>
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={close}
+                className={activeSection === l.href ? 'is-active' : ''}
+              >
                 {l.label}
               </a>
             ))}

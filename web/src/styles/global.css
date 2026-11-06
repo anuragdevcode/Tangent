@@ -17,7 +17,7 @@
 
   --text: #f4f5f6;
   --text-dim: #a3a7ad;
-  --text-mute: #7b8189;
+  --text-mute: #8e939b;
 
   --silver-hi: #ffffff;
   --silver-mid: #d6dade;
@@ -456,6 +456,13 @@ kbd {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.nav-links a.is-active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.09);
+  font-weight: 500;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
@@ -523,6 +530,12 @@ kbd {
 
 .nav-mobile > a:hover {
   color: var(--text);
+}
+
+.nav-mobile > a.is-active {
+  color: #ffffff;
+  font-weight: 600;
+  border-bottom-color: rgba(255, 255, 255, 0.2);
 }
 
 .nav-mobile-cta {
@@ -940,6 +953,58 @@ kbd {
   opacity: 0.9;
 }
 
+/* desktop icons (interactive mock layer - bottom-left corner) */
+.desktop-icons {
+  position: absolute;
+  bottom: 2.6cqw;
+  left: 2.4cqw;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 1.8cqw;
+  z-index: 3;
+  transition:
+    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.desktop-icons.is-hidden {
+  opacity: 0;
+  transform: translateY(10px) scale(0.92);
+}
+
+.desktop-icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5cqw;
+  width: 7.2cqw;
+  text-align: center;
+  user-select: none;
+}
+
+.desktop-icon-item svg {
+  width: 3.4cqw;
+  height: 3.4cqw;
+  padding: 0.6cqw;
+  border-radius: 0.85cqw;
+  background: rgba(16, 18, 24, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(10px);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+}
+
+.desktop-icon-item span {
+  font-size: 0.95cqw;
+  font-weight: 500;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
 /* floating popover card — layered above the wallpaper, properly oriented */
 .behind-popover {
   position: absolute;
@@ -1070,17 +1135,29 @@ kbd {
   background: rgba(255, 255, 255, 0.1);
   font-size: 0.8rem;
   font-weight: 600;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  transition: transform 0.12s ease, background 0.15s ease, opacity 0.15s ease;
 }
 
-.pbtn svg {
-  width: 11px;
-  height: 11px;
+.pbtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.pbtn:active {
+  transform: scale(0.96);
 }
 
 .pbtn--primary {
   background: #e9ebee;
   color: #0b0c0e;
   flex: 1;
+}
+
+.pbtn--primary:hover {
+  background: #ffffff;
 }
 
 .popover-labels {
@@ -1122,9 +1199,27 @@ kbd {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 6px;
+  padding: 9px 8px;
   font-size: 0.86rem;
   font-weight: 500;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+button.popover-switch:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+button.popover-switch:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 1px;
 }
 
 .popover-switch svg {
@@ -1350,6 +1445,14 @@ kbd {
   padding: 7px 10px;
   border-radius: 8px;
   color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mw-side-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
 }
 
 .mw-side-item svg {
@@ -1428,7 +1531,19 @@ kbd {
   border: 1px solid var(--line);
   background: var(--surface-2);
   overflow: hidden;
-  transition: transform 0.3s var(--ease-out), border-color 0.3s;
+  transition: transform 0.3s var(--ease-out), border-color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mw-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.mw-card.is-selected {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 1px;
 }
 
 .mw-card.mw-card.is-current,
@@ -1608,7 +1723,17 @@ kbd {
   font-size: 0.82rem;
   font-weight: 500;
   font-family: var(--font-body);
-  cursor: default;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.mw-insp-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.mw-insp-btn:active {
+  transform: scale(0.98);
 }
 
 .mw-insp-btn--primary {
@@ -1616,6 +1741,11 @@ kbd {
   border-color: transparent;
   color: #0b0c0e;
   box-shadow: 0 10px 26px -14px rgba(255, 255, 255, 0.5);
+}
+
+.mw-insp-btn--primary:hover {
+  background: #ffffff;
+  border-color: transparent;
 }
 
 .mw-insp-label {
@@ -1922,6 +2052,35 @@ kbd {
   max-width: 860px;
 }
 
+.term-copy-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.term-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.term-copy-btn.is-copied {
+  background: rgba(48, 209, 88, 0.16);
+  border-color: rgba(48, 209, 88, 0.4);
+  color: #30d158;
+}
+
 .term-sec .kwrap > div:first-child {
   width: 100%;
 }
@@ -1984,6 +2143,44 @@ kbd {
   padding: 12px 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-wrap: wrap;
+}
+
+.flag-row--interactive {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 10px 10px;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.flag-row--interactive:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.flag-row--interactive:hover .flag-cmd {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.flag-copy-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-mute);
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.flag-row--interactive:hover .flag-copy-pill,
+.flag-row--interactive:focus-visible .flag-copy-pill {
+  opacity: 1;
 }
 
 .flag-cmd {
