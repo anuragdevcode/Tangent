@@ -1117,6 +1117,10 @@ enum SelfTests {
             atPath: fakeSaver.appendingPathComponent("Contents/MacOS/TangentScreenSaver").path,
             contents: Data("test".utf8)
         )
+        FileManager.default.createFile(
+            atPath: fakeSaver.appendingPathComponent("Contents/Info.plist").path,
+            contents: Data("test-info".utf8)
+        )
 
         let saverLayout = DisplayLayout(
             defaultConfig: videoConfig,
@@ -1159,6 +1163,18 @@ enum SelfTests {
         let savedSaver = ScreenSaverStorage(homeDirectory: saverHome).load()
         expect(savedSaver?.layout == saverLayout, "the plugin config round-trips the layout")
         expect(savedSaver?.libmpvPath == "/tmp/libmpv.2.dylib", "the plugin config carries the libmpv path")
+        expect(ScreenSaverStorage(homeDirectory: saverHome)
+            .installedBundleMatches(fakeSaver),
+               "the installed screen saver matches the app bundle")
+
+        try? Data("updated".utf8).write(
+            to: fakeSaver.appendingPathComponent("Contents/MacOS/TangentScreenSaver")
+        )
+        service.synchronize(saverConfiguration)
+        let installedExecutable = service.installedURL
+            .appendingPathComponent("Contents/MacOS/TangentScreenSaver")
+        expect((try? Data(contentsOf: installedExecutable)) == Data("updated".utf8),
+               "synchronizing updates a stale installed screen saver")
 
         expect(service.setEnabled(false, configuration: saverConfiguration),
                "disabling screen saver mode removes the bundle")

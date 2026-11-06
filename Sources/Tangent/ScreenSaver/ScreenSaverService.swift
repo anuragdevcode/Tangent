@@ -104,6 +104,10 @@ final class ScreenSaverService {
         do {
             if !isInstalled {
                 try install(configuration)
+            } else if let bundledSaverURL,
+                      fileManager.fileExists(atPath: bundledSaverURL.path),
+                      !storage.installedBundleMatches(bundledSaverURL, fileManager: fileManager) {
+                try install(configuration)
             } else {
                 try storage.save(configuration)
             }
