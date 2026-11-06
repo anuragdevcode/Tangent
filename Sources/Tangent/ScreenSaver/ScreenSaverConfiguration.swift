@@ -95,6 +95,19 @@ struct ScreenSaverStorage {
         try fileManager.removeItem(at: installedBundleURL)
     }
 
+    func installedBundleMatches(
+        _ bundledBundleURL: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        ["Contents/Info.plist", "Contents/MacOS/TangentScreenSaver"].allSatisfy { path in
+            let bundledPath = bundledBundleURL.appendingPathComponent(path).path
+            let installedPath = installedBundleURL.appendingPathComponent(path).path
+            return fileManager.fileExists(atPath: bundledPath)
+                && fileManager.fileExists(atPath: installedPath)
+                && fileManager.contentsEqual(atPath: bundledPath, andPath: installedPath)
+        }
+    }
+
     /// Copies the build's bundled saver into `~/Library/Screen Savers` and
     /// writes the configuration next to it. A failed config write removes the
     /// half-installed bundle so the toggle is never left lying.
