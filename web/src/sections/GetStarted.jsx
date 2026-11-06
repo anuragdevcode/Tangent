@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { Download, Github, Cpu, MonitorDown, Scale } from 'lucide-react'
+import { Download, Github, Scale } from 'lucide-react'
 import { DOWNLOAD, RELEASES, REPO, LICENSE } from '../data/content.js'
 
 export default function GetStarted() {
@@ -31,7 +31,7 @@ export default function GetStarted() {
           viewport={{ once: true, margin: '-15% 0px' }}
           transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
         >
-          Costs nothing. Your guilt
+          Costs nothing. Your guilt{' '}
           <br />
           costs about <span className="grad-text">a coffee.</span>
         </motion.h2>
@@ -60,10 +60,11 @@ export default function GetStarted() {
           viewport={{ once: true }}
           transition={{ duration: 0.9, delay: 0.3 }}
         >
-          Grab the latest build from <a href={RELEASES} target="_blank" rel="noreferrer">Releases</a> — or
-          compile it yourself in <a href="#terminal">three commands</a>. Requires an
-          <strong> Apple Silicon Mac (M1+)</strong>, <strong>macOS 13.0+</strong>, and a desktop you
-          refuse to leave sad. Source lives under{' '}
+          Download link acting up? Grab the same DMG from{' '}
+          <a href={RELEASES} target="_blank" rel="noreferrer">Releases</a> — or compile it yourself
+          in <a href="#terminal">three commands</a>. Requires an <strong>Apple Silicon Mac
+          (M1+)</strong>, <strong>macOS 13.0+</strong>, and a desktop you refuse to leave sad.
+          Source lives under{' '}
           <a href={LICENSE} target="_blank" rel="noreferrer"><Scale size={12} /> GPL-3.0</a>.
         </motion.p>
       </div>

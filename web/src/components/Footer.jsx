@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="kwrap footer-inner">
         <div className="footer-top">
           <div className="footer-brand">
-            <img src={BRANDING.mark} alt="Tangent logo" width="40" height="40" />
+            <img src={BRANDING.mark} alt="Tangent logo" width="40" height="40" loading="lazy" decoding="async" />
             <div>
               <p className="footer-name">Tangent</p>
               <p className="footer-tag">Live wallpapers, native to macOS.</p>

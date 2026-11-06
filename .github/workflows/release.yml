@@ -56,13 +56,29 @@ jobs:
 
       - name: Create DMG
         run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="Tangent-${VERSION}-arm64.dmg"
           mkdir dmg_staging
           ditto build/Tangent.app dmg_staging/Tangent.app
           ln -s /Applications dmg_staging/Applications
-          hdiutil create -volname "Tangent" \
-            -srcfolder dmg_staging \
-            -ov -format UDZO \
-            "Tangent-${{ steps.ver.outputs.version }}-arm64.dmg"
+          # Hosted macOS runners intermittently return EBUSY (49168) from
+          # hdiutil create when Spotlight is still indexing the build. Retry
+          # the whole create instead of failing the release.
+          sync
+          for attempt in 1 2 3 4; do
+            rm -f "$DMG"
+            if hdiutil create -volname "Tangent" \
+              -srcfolder dmg_staging \
+              -nospotlight -ov -format UDZO \
+              "$DMG"; then
+              exit 0
+            fi
+            echo "hdiutil create failed (attempt $attempt); retrying…" >&2
+            sleep 5
+            sync
+          done
+          echo "error: could not create $DMG" >&2
+          exit 1
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

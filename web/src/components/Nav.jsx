@@ -68,6 +68,7 @@ export default function Nav() {
             <span>Download</span>
           </a>
           <button
+            type="button"
             className="nav-burger"
             aria-expanded={open}
             aria-controls="mobile-menu"

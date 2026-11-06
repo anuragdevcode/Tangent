@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { Zap, Fullscreen, BatteryCharging, Lock, Command } from 'lucide-react'
+import { Zap, Fullscreen, BatteryCharging, Lock, Command, MonitorPlay } from 'lucide-react'
 import { SectionHead, Reveal, Toggle } from '../components/Shared.jsx'
 
 const RULES = [
@@ -82,6 +82,22 @@ export default function Automation() {
               </div>
               <Toggle on={false} />
             </motion.div>
+
+            <p className="autom-label">Screen Saver</p>
+            <motion.div
+              className="autom-row"
+              initial={reduce ? {} : { opacity: 0, y: 18 }}
+              whileInView={reduce ? {} : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-10% 0px' }}
+              transition={{ duration: 0.6, delay: 0.62, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <span className="autom-row-icon"><MonitorPlay size={14} /></span>
+              <div className="autom-row-text">
+                <strong>Use Tangent as Screen Saver</strong>
+                <span>Installs a real .saver and mirrors the active layout. Muted, so it never yells at 3 a.m.</span>
+              </div>
+              <Toggle on />
+            </motion.div>
           </div>
         </Reveal>
 
@@ -89,7 +105,8 @@ export default function Automation() {
           <p className="section-foot autom-foot">
             Rules are independent: closing a fullscreen app will not undo a manual pause. Changes
             apply immediately and are remembered between launches. Your render loop just quietly
-            stops. Nothing else even notices.
+            stops. Nothing else even notices. When the Mac goes idle, the screen saver takes over
+            with the same wallpaper — and the same crippling attention to detail.
           </p>
         </Reveal>
       </div>
