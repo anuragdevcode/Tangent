@@ -76,9 +76,12 @@ The layout is saved and restored on the next launch.
 Turn on **Use Tangent as Screen Saver** in Settings ▸ General, Automation ▸
 Screen Saver, or **Playback Rules ▸ Use as Screen Saver**. Tangent copies its
 native `Tangent.saver` into `~/Library/Screen Savers` and writes the current
-per-display layout to Application Support. The plugin reads that snapshot while
-it runs, so pinned and disabled displays behave exactly as they do on the
-desktop, and changing a wallpaper updates the screen saver without reinstalling.
+per-display layout to Application Support. Wallpapers picked from Desktop,
+Documents, Downloads or iCloud Drive are copied there too, because the sandboxed
+screen saver is denied those folders by macOS privacy protection. The plugin
+reads that snapshot while it runs, so pinned and disabled displays behave
+exactly as they do on the desktop, and changing a wallpaper updates the screen
+saver without reinstalling.
 
 Select **Tangent** once under **System Settings ▸ Screen Saver**. Turning the
 switch off removes the installed bundle and leaves the rest of your Saver

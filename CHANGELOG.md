@@ -4,6 +4,17 @@ All notable changes to Tangent are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 semantic versioning once it reaches 1.0.
 
+## [Unreleased]
+
+### Fixed
+
+- Screen Saver mode now stages wallpapers picked from Desktop, Documents,
+  Downloads or iCloud Drive under Application Support. The screen-saver host is
+  denied those folders by macOS privacy protection, which previously left an
+  empty saver that revealed the desktop picture.
+- A launch with no active layout no longer replaces a working screen-saver
+  snapshot with an empty one.
+
 ## [0.6.0] — 2026-11-06
 
 ### Added

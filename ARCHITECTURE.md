@@ -234,8 +234,12 @@ imitating one:
   containing the whole `DisplayLayout` plus the path to the app's bundled
   libmpv. The plugin reads it, resolves the wallpaper for its own display ID and
   polls the file's modification date (throttled) so a live switch is reflected.
-- Screen savers run sandboxed, but macOS grants legacy savers a read-only
-  filesystem exception. The plugin derives the real home from its own bundle path
+- Screen savers run sandboxed. macOS grants legacy savers a read-only
+  filesystem exception, but TCC still protects Desktop, Documents, Downloads and
+  iCloud Drive. `ScreenSaverStager` copies local media into
+  `ScreenSaver/Media` and points the snapshot at those copies; when the app
+  itself lives in a protected folder it stages the libmpv frameworks the same
+  way. The plugin derives the real home from its own bundle path
   (`~/Library/Screen Savers/Tangent.saver`) instead of trusting the sandbox
   container's `NSHomeDirectory()`.
 - `ScreenSaverService` owns the `~/Library/Screen Savers/Tangent.saver` copy and

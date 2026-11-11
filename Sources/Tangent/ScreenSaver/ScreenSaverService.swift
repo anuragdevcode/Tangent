@@ -13,6 +13,7 @@ final class ScreenSaverService {
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let storage: ScreenSaverStorage
+    private let stager: ScreenSaverStager
     private let bundledSaverURL: URL?
 
     /// Called after the switch or the installation changes, on the main queue.
@@ -29,7 +30,9 @@ final class ScreenSaverService {
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
-        self.storage = ScreenSaverStorage(homeDirectory: homeDirectory)
+        let storage = ScreenSaverStorage(homeDirectory: homeDirectory)
+        self.storage = storage
+        self.stager = ScreenSaverStager(storage: storage, fileManager: fileManager)
         self.bundledSaverURL = bundledSaverURL
             ?? Bundle.main.resourceURL?.appendingPathComponent(
                 ScreenSaverStorage.bundleName,
@@ -78,7 +81,7 @@ final class ScreenSaverService {
 
         do {
             if enabled {
-                try install(configuration)
+                try install(prepared(configuration))
                 defaults.set(true, forKey: Self.enabledKey)
             } else {
                 try storage.removeInstalledBundle()
@@ -101,6 +104,7 @@ final class ScreenSaverService {
     /// this repairs a missing bundle and always refreshes the config.
     func synchronize(_ configuration: ScreenSaverConfiguration) {
         guard isEnabled else { return }
+        let configuration = prepared(configuration)
         do {
             if !isInstalled {
                 try install(configuration)
@@ -124,6 +128,17 @@ final class ScreenSaverService {
             throw ScreenSaverError.bundleMissing
         }
         try storage.install(from: bundledSaverURL, configuration: configuration)
+    }
+
+    /// Stage user-selected media where the saver can read it, and never throw
+    /// away a working snapshot just because a launch had no layout yet.
+    private func prepared(_ configuration: ScreenSaverConfiguration) -> ScreenSaverConfiguration {
+        let staged = stager.prepare(configuration)
+        if staged.layout.hasPlayableConfig { return staged }
+        if let existing = storage.load(), existing.layout.hasPlayableConfig {
+            return existing
+        }
+        return staged
     }
 }
 

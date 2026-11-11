@@ -228,7 +228,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Last, and only for an ordinary launch: scripted probes and snapshots
         // must stay deterministic and offline. `checkIfNeeded()` itself is
         // throttled, so reopening the app does not hammer the GitHub API.
-        screenSaver.synchronize(makeScreenSaverConfiguration())
+        if persistSelection {
+            screenSaver.synchronize(makeScreenSaverConfiguration())
+        }
         updates.checkIfNeeded()
     }
 
@@ -445,7 +447,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // The screen saver is a separate process; keep its snapshot current as
         // soon as the layout changes instead of waiting for the next launch.
-        screenSaver.synchronize(makeScreenSaverConfiguration())
+        // Ephemeral runs must not replace what the user chose for the saver.
+        if persistSelection {
+            screenSaver.synchronize(makeScreenSaverConfiguration())
+        }
         rebuildMenu()
         // The library inspector, the popover and the Settings playback card all
         // read the engine snapshot; refresh the ones on screen so none can show

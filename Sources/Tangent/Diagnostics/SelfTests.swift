@@ -1161,11 +1161,65 @@ enum SelfTests {
         expect(service.configurationURL.path.contains("Application Support/Tangent/ScreenSaver"),
                "the plugin config lives under Application Support")
         let savedSaver = ScreenSaverStorage(homeDirectory: saverHome).load()
-        expect(savedSaver?.layout == saverLayout, "the plugin config round-trips the layout")
+        let stagedDefault = savedSaver?.layout.defaultConfig
+        let stagedMediaRoot = saverHome
+            .appendingPathComponent("Library/Application Support/Tangent/ScreenSaver/Media")
+        expect(savedSaver?.layout.disabled == ["3"], "the plugin config keeps disabled displays")
+        expect(savedSaver?.layout.pins["2"]?.entry == stagedDefault?.entry,
+               "a pinned display shares the staged copy")
+        expect(stagedDefault?.entry.hasPrefix(stagedMediaRoot.path + "/") == true,
+               "wallpaper media is staged under Application Support")
+        expect(stagedDefault?.entry != videoConfig.entry,
+               "the screen saver never points at the original user path")
+        expect(FileManager.default.fileExists(atPath: stagedDefault?.entry ?? ""),
+               "the staged wallpaper exists")
+        expect((try? Data(contentsOf: URL(fileURLWithPath: stagedDefault?.entry ?? "")))
+            == (try? Data(contentsOf: URL(fileURLWithPath: videoConfig.entry))),
+               "the staged wallpaper is a byte-for-byte copy")
+        expect(saverLayout.defaultConfig?.entry == videoConfig.entry,
+               "the live layout is not rewritten")
         expect(savedSaver?.libmpvPath == "/tmp/libmpv.2.dylib", "the plugin config carries the libmpv path")
         expect(ScreenSaverStorage(homeDirectory: saverHome)
             .installedBundleMatches(fakeSaver),
                "the installed screen saver matches the app bundle")
+
+        let restaged = ScreenSaverStorage(homeDirectory: saverHome)
+        let firstPass = ScreenSaverStager(storage: restaged).prepare(saverConfiguration)
+        let secondPass = ScreenSaverStager(storage: restaged).prepare(firstPass)
+        expect(secondPass.layout.defaultConfig?.entry == firstPass.layout.defaultConfig?.entry,
+               "staging an already staged wallpaper is a no-op")
+        let repeated = ScreenSaverStager(storage: restaged).prepare(saverConfiguration)
+        expect(repeated.layout.defaultConfig?.entry == firstPass.layout.defaultConfig?.entry,
+               "staging the same wallpaper reuses its copy")
+
+        if let webPack = try? Pack.load(folder: fixturesRoot
+            .appendingPathComponent("library/landing-web")),
+           let webConfig = WallpaperConfig(pack: webPack) {
+            let stagedWeb = ScreenSaverStager(storage: restaged).prepare(
+                ScreenSaverConfiguration(layout: DisplayLayout(defaultConfig: webConfig))
+            ).layout.defaultConfig
+            expect(stagedWeb?.entry.hasPrefix(stagedMediaRoot.path + "/") == true,
+                   "web wallpapers are staged as a folder")
+            expect(stagedWeb?.entry.hasSuffix("/index.html") == true,
+                   "the staged web entry keeps its relative name")
+            expect(stagedWeb?.rootFolder.map {
+                FileManager.default.fileExists(
+                    atPath: URL(fileURLWithPath: $0)
+                        .appendingPathComponent(PackFormat.infoFile).path
+                )
+            } == true, "staged web packs keep their metadata and assets")
+            expect(stagedWeb?.rootFolder?.hasPrefix(stagedMediaRoot.path + "/") == true,
+                   "the staged web root stays inside Application Support")
+        } else {
+            expect(false, "fixture web pack produces a wallpaper config")
+        }
+
+        // A launch before any wallpaper is chosen must not erase a working
+        // snapshot; otherwise the screen saver goes blank until the next sync.
+        service.synchronize(ScreenSaverConfiguration(layout: DisplayLayout()))
+        let preserved = ScreenSaverStorage(homeDirectory: saverHome).load()
+        expect(preserved?.layout.defaultConfig?.entry == stagedDefault?.entry,
+               "an empty layout preserves the last working snapshot")
 
         try? Data("updated".utf8).write(
             to: fakeSaver.appendingPathComponent("Contents/MacOS/TangentScreenSaver")
