@@ -402,7 +402,7 @@ Sources/Tangent/
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About & Feedback, in-app Ko-fi
                              support, control panel, theme and shared components
-  Diagnostics/SelfTests.swift     321-check compatibility and service suite
+  Diagnostics/SelfTests.swift     339-check compatibility and service suite
 ScreenSaver/TangentScreenSaverView.swift  the .saver principal class
 Tests/Fixtures/              pack and media fixtures used by the tests
 Resources/Info.plist
@@ -422,10 +422,10 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 324 checks` |
+| Compatibility suite (`--test`) | `PASS — 339 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
-| Version | `0.6.0` (build `7`) |
-| Binary | `sha256 5daa294b4b90664e791ac304ffce747af424f53e0b41964948dd7a7f630b987f`, arm64 |
+| Version | `0.6.1` (build `8`) |
+| Binary | `sha256 75ed6eca26a8382c83261f04a813f7cfc89c6912294b2bf4f11de39c9757894f`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
 | Library window | one `1140×760` window at layer `0` (minimum `900×660`), plus the wallpaper window |
@@ -437,7 +437,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Automation desktop icons (`--snapshot-library --library-section 6`) | the **Shortcuts** card shows Global Shortcuts and Hide Desktop Icons in the same row style with the Finder-restart explanation; the busy-state disabling is covered by the service tests |
 | About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |
 | Update/diagnostics suite (`--test`) | semver with prereleases, drafts, asset selection, HTTP 304/403/404/429/500, offline errors, a mocked `URLSession` request, 24-hour scheduling, diagnostic fields/fallbacks/Rosetta, privacy exclusions and issue-URL encoding |
-| GitHub endpoint (`curl`) | `releases/latest` resolves to `v0.6.0` and serves `Tangent-0.6.0-arm64.dmg`; the landing page's download CTAs use that exact asset URL |
+| GitHub endpoint (`curl`) | `releases/latest` resolves to `v0.6.1` and serves `Tangent-0.6.1-arm64.dmg`; the landing page's download CTAs use that exact asset URL |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
 | Inspector preview pill | keeps its `92×26` frame while the title flips **Preview** ↔ **Pause**, so the control never resizes mid-click |
 | Status capsules | keep their intrinsic width in the Settings playback card and the Automation page instead of stretching to fill the row |

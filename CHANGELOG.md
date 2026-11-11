@@ -6,6 +6,8 @@ semantic versioning once it reaches 1.0.
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-11
+
 ### Fixed
 
 - Screen Saver mode now stages wallpapers picked from Desktop, Documents,
