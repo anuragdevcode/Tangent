@@ -60,7 +60,7 @@ final class DisplaysPageView: NSView {
     private func build() {
         let title = makeLabel("Displays", font: Theme.windowTitle)
         let subtitle = makeWrappingLabel(
-            "Each connected display runs its own wallpaper window. Pin a display to keep it on a "
+            "Each display runs its own wallpaper window. Pin a display to keep it on a "
             + "different wallpaper when the default changes, or turn it off entirely.",
             font: Theme.callout,
             color: .secondaryLabelColor
@@ -97,8 +97,8 @@ final class DisplaysPageView: NSView {
         }
 
         let note = makeWrappingLabel(
-            "A wallpaper cannot stretch across displays; use the same wallpaper on each one for a "
-            + "cloned look. Assignments are keyed by display, so they survive restarts and reconnects.",
+            "A wallpaper does not stretch across displays; use the same one on each for a "
+            + "cloned look. Assignments are remembered between launches.",
             font: Theme.caption,
             color: .tertiaryLabelColor
         )
@@ -127,27 +127,19 @@ final class DisplaysPageView: NSView {
         card.translatesAutoresizingMaskIntoConstraints = false
         card.widthAnchor.constraint(lessThanOrEqualToConstant: 620).isActive = true
 
-        let iconCard = CardView()
-        iconCard.radius = 9
-        iconCard.fillColor = display.isDisabled
-            ? Theme.controlFill
-            : Theme.accent.withAlphaComponent(0.14)
-        iconCard.translatesAutoresizingMaskIntoConstraints = false
         let icon = Symbols.view(
             display.isMain ? "laptopcomputer" : "display",
             pointSize: 16,
             weight: .regular,
-            color: display.isDisabled ? .tertiaryLabelColor : Theme.accent
+            color: display.isDisabled ? .tertiaryLabelColor : .secondaryLabelColor
         )
-        iconCard.addSubview(icon)
-        NSLayoutConstraint.activate([
-            iconCard.widthAnchor.constraint(equalToConstant: 36),
-            iconCard.heightAnchor.constraint(equalToConstant: 36),
-            icon.centerXAnchor.constraint(equalTo: iconCard.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: iconCard.centerYAnchor),
-        ])
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
 
-        let name = makeLabel(display.label, font: Theme.cardTitle)
+        let name = makeLabel(
+            display.label.replacingOccurrences(of: " (Main)", with: ""),
+            font: Theme.cardTitle
+        )
         let state = makeLabel(display.state, font: Theme.caption, color: .secondaryLabelColor)
         let text = vstack([name, state], spacing: 2)
 
@@ -183,10 +175,9 @@ final class DisplaysPageView: NSView {
         let off = actionButton("Turn Off", symbol: "power", active: display.isDisabled) { [weak self] in
             self?.actions.turnOffDisplay(display.id)
         }
-        off.contentTintColor = display.isDisabled ? .systemOrange : .secondaryLabelColor
 
         let controls = hstack([useDefault, pin, off], spacing: 6)
-        let topRow = hstack([iconCard, text, flexibleSpacer(), badgeRow], spacing: 11)
+        let topRow = hstack([icon, text, flexibleSpacer(), badgeRow], spacing: 10)
         let content = vstack([topRow, controls], spacing: 12)
 
         card.pin(content, insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))
@@ -202,7 +193,7 @@ final class DisplaysPageView: NSView {
         let button = HoverButton(
             title,
             symbol: symbol,
-            style: active ? .accent : .outlined,
+            style: active ? .filled : .outlined,
             target: nil,
             action: nil
         )
@@ -238,7 +229,7 @@ final class AutomationPageView: NSView {
 
     private var desktopIconsDescription: String {
         if snapshot.desktopIconsBusy {
-            return "Updating the desktop… Finder will reopen in a moment."
+            return "Updating the desktop. Finder reopens in a moment."
         }
         if let failure = snapshot.desktopIconsState.failure {
             return "Couldn’t update desktop icons. \(failure)"
@@ -260,9 +251,9 @@ final class AutomationPageView: NSView {
             return "Installed. Choose Tangent in System Settings ▸ Screen Saver."
         }
         if snapshot.screenSaverEnabled {
-            return "Enabled, but Tangent.saver is missing. Turn this off and on to reinstall."
+            return "On, but Tangent.saver is missing. Turn this off and on to reinstall."
         }
-        return "Show the active wallpaper when your Mac is idle, then pick Tangent in System Settings."
+        return "Show the active wallpaper when your Mac is idle, then choose Tangent in System Settings."
     }
 
     private func build() {
@@ -279,7 +270,7 @@ final class AutomationPageView: NSView {
         let rows = [
             SettingsRow(
                 symbol: "rectangle.inset.filled",
-                title: "Pause for Fullscreen Apps",
+                title: "Pause for fullscreen apps",
                 subtitle: "Stop rendering while an app covers the main display.",
                 trailing: toggle(isOn: policy.pauseOnFullscreen) { [weak self] isOn in
                     guard var policy = self?.actions.snapshot().policy else { return }
@@ -289,7 +280,7 @@ final class AutomationPageView: NSView {
             ),
             SettingsRow(
                 symbol: "battery.50percent",
-                title: "Pause on Battery",
+                title: "Pause on battery",
                 subtitle: "Save power when the Mac is unplugged.",
                 trailing: toggle(isOn: policy.pauseOnBattery) { [weak self] isOn in
                     guard var policy = self?.actions.snapshot().policy else { return }
@@ -299,7 +290,7 @@ final class AutomationPageView: NSView {
             ),
             SettingsRow(
                 symbol: "lock.display",
-                title: "Pause When the Screen Locks",
+                title: "Pause when the screen locks",
                 subtitle: "Stop decoding while the display is asleep or locked.",
                 trailing: toggle(isOn: policy.pauseOnLock) { [weak self] isOn in
                     guard var policy = self?.actions.snapshot().policy else { return }
@@ -309,14 +300,14 @@ final class AutomationPageView: NSView {
             ),
         ]
 
-        let rules = GroupedSection(title: "Playback Rules", rows: rows)
+        let rules = GroupedSection(title: "Playback rules", rows: rows)
 
         let hotkeyRow = SettingsRow(
             symbol: "command",
-            title: "Global Shortcuts",
+            title: "Global shortcuts",
             subtitle: snapshot.hotkeysEnabled
                 ? "\(snapshot.hotkeyStatus)"
-                : "Off — enable them to control Tangent from any app.",
+                : "Off. Turn them on to control Tangent from any app.",
             trailing: toggle(isOn: snapshot.hotkeysEnabled) { [weak self] isOn in
                 self?.actions.setHotkeysEnabled(isOn)
             }
@@ -327,10 +318,10 @@ final class AutomationPageView: NSView {
             self?.actions.setDesktopIconsHidden(isOn)
         }
         desktopIconsToggle.isEnabled = !snapshot.desktopIconsBusy
-        desktopIconsToggle.setAccessibilityLabel("Hide Desktop Icons")
+        desktopIconsToggle.setAccessibilityLabel("Hide desktop icons")
         let desktopIconsRow = SettingsRow(
             symbol: "desktopcomputer",
-            title: "Hide Desktop Icons",
+            title: "Hide desktop icons",
             subtitle: desktopIconsDescription,
             trailing: desktopIconsToggle
         )
@@ -345,9 +336,9 @@ final class AutomationPageView: NSView {
             self?.actions.setScreenSaverEnabled(isOn)
         }
         screenSaverToggle.isEnabled = !snapshot.screenSaverBusy
-        screenSaverToggle.setAccessibilityLabel("Use Tangent as Screen Saver")
+        screenSaverToggle.setAccessibilityLabel("Use Tangent as screen saver")
         let screenSaver = GroupedSection(
-            title: "Screen Saver",
+            title: "Screen saver",
             rows: [
                 SettingsRow(
                     symbol: "display",
@@ -380,7 +371,7 @@ final class AutomationPageView: NSView {
         let statusDetail = makeWrappingLabel(
             hasWallpaper
                 ? (snapshot.pauseDescription ?? "Wallpapers are playing normally.")
-                : "Choose one from the library to bring the desktop to life.",
+                : "Choose a wallpaper from the library.",
             font: Theme.caption,
             color: .secondaryLabelColor
         )
@@ -395,8 +386,8 @@ final class AutomationPageView: NSView {
         statusCard.pin(statusRow, insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))
 
         let footer = makeWrappingLabel(
-            "Rules are independent: closing a fullscreen app will not undo a manual pause. Changes "
-            + "apply immediately and are remembered between launches.",
+            "Rules work independently. Closing a fullscreen app does not undo a manual pause. "
+            + "Changes apply immediately and are remembered between launches.",
             font: Theme.caption,
             color: .tertiaryLabelColor
         )
@@ -443,7 +434,7 @@ final class AboutPageView: NSView {
     private let content: AboutFeedbackPage
 
     init(actions: AppActions) {
-        content = AboutFeedbackPage(centered: false, actions: actions)
+        content = AboutFeedbackPage(actions: actions)
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 

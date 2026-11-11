@@ -63,7 +63,7 @@ final class MenuBarPopoverController: NSViewController {
         let header = hstack(
             [
                 BrandMarkView(size: 22),
-                makeLabel("Tangent", font: Theme.font(13, .semibold)),
+                makeLabel("Tangent", font: Theme.font(13, .medium)),
                 flexibleSpacer(),
                 libraryButton(),
                 statePill,
@@ -118,19 +118,19 @@ final class MenuBarPopoverController: NSViewController {
 
         pauseRow = SettingsRow(
             symbol: "pause.circle",
-            title: "Pause Wallpaper",
+            title: "Pause wallpaper",
             subtitle: nil,
             trailing: pauseSwitch
         )
         let muteRow = SettingsRow(
             symbol: "speaker.slash",
-            title: "Mute Audio",
+            title: "Mute audio",
             trailing: muteSwitch
         )
         muteRow.toolTip = "Mute audio on every display."
         desktopIconsRow = SettingsRow(
             symbol: "desktopcomputer",
-            title: "Hide Desktop Icons",
+            title: "Hide desktop icons",
             trailing: desktopIconsSwitch
         )
         let quickCard = GroupedSection(
@@ -428,9 +428,8 @@ private final class PopoverPreviewView: NSView {
 
     private let imageView = NSImageView()
     private let scrim = CAGradientLayer()
-    private let titleLabel = makeLabel("No wallpaper", font: Theme.font(15, .semibold), color: .white)
+    private let titleLabel = makeLabel("No wallpaper", font: Theme.font(15, .medium), color: .white)
     private let subtitleLabel = makeLabel("", font: Theme.tiny, color: NSColor.white.withAlphaComponent(0.78))
-    private let overlay = BadgeView()
     private var currentID: String?
 
     override init(frame frameRect: NSRect) {
@@ -461,21 +460,15 @@ private final class PopoverPreviewView: NSView {
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        overlay.translatesAutoresizingMaskIntoConstraints = false
-        overlay.isHidden = true
 
         addSubview(titleLabel)
         addSubview(subtitleLabel)
-        addSubview(overlay)
 
         NSLayoutConstraint.activate([
             imageView.topAnchor.constraint(equalTo: topAnchor),
             imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
             imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
-
-            overlay.topAnchor.constraint(equalTo: topAnchor, constant: 9),
-            overlay.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
 
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
@@ -512,28 +505,12 @@ private final class PopoverPreviewView: NSView {
             titleLabel.stringValue = fallback?.title ?? "No wallpaper"
             subtitleLabel.stringValue = fallback?.type.displayName
                 ?? "Choose one from the library"
-            overlay.isHidden = fallback == nil
-            if let fallback {
-                overlay.configure(
-                    text: fallback.type.displayName.uppercased(),
-                    symbol: fallback.type.glyph,
-                    tint: .white,
-                    background: NSColor.black.withAlphaComponent(0.5)
-                )
-            }
             return
         }
 
         currentID = pack.id
         titleLabel.stringValue = pack.info.title
         subtitleLabel.stringValue = pack.info.author.map { "by \($0)" } ?? pack.info.type.displayName
-        overlay.isHidden = false
-        overlay.configure(
-            text: pack.info.type.displayName.uppercased(),
-            symbol: pack.info.type.glyph,
-            tint: .white,
-            background: NSColor.black.withAlphaComponent(0.5)
-        )
 
         let identifier = pack.id
         Task { [weak self] in
@@ -573,7 +550,7 @@ private final class DisplayPopoverRow: NSButton {
             pointSize: 11,
             weight: .medium
         )
-        icon.contentTintColor = display.isDisabled ? .tertiaryLabelColor : Theme.accent
+        icon.contentTintColor = display.isDisabled ? .tertiaryLabelColor : .secondaryLabelColor
         icon.translatesAutoresizingMaskIntoConstraints = false
 
         // The laptop icon already says which display is the main one, so the
@@ -600,7 +577,7 @@ private final class DisplayPopoverRow: NSButton {
             badge.configure(text: "Off", tint: .systemOrange)
             trailing = badge
         } else if display.isPinned {
-            badge.configure(text: "Pinned", tint: .systemBlue)
+            badge.configure(text: "Pinned", tint: .secondaryLabelColor)
             trailing = badge
         } else if display.config?.title == defaultTitle {
             // Same wallpaper as the hero preview above: no need to repeat it.

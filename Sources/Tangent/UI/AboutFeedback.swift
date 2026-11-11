@@ -10,7 +10,7 @@ final class AboutFeedbackPage: NSView {
     private let actions: AppActions
     private let updatesCard: UpdatesCardView
 
-    init(centered: Bool, actions: AppActions) {
+    init(actions: AppActions) {
         self.actions = actions
         self.updatesCard = UpdatesCardView(actions: actions)
         super.init(frame: .zero)
@@ -19,40 +19,38 @@ final class AboutFeedbackPage: NSView {
         let helpCard = HelpSupportCardView(actions: actions)
         let communityCard = CommunityCardView(actions: actions)
 
-        var views: [NSView] = []
-        if centered {
-            views.append(centeredRow([AboutContent.mark(size: 84)]))
-            views.append(AboutContent.titleBlock(centered: true))
-        } else {
-            views.append(
-                hstack(
-                    [AboutContent.mark(size: 64), AboutContent.titleBlock(centered: false)],
-                    spacing: 16
-                )
-            )
-        }
-        views.append(contentsOf: [
-            AboutContent.blurb(centered: centered),
-            AboutContent.primaryActions(),
-            spacing(4),
+        let header = hstack(
+            [AboutContent.mark(size: 56), AboutContent.titleBlock()],
+            spacing: 14
+        )
+        let blurb = AboutContent.blurb()
+        blurb.widthAnchor.constraint(lessThanOrEqualToConstant: 540).isActive = true
+        let actionsRow = AboutContent.primaryActions()
+        let detailsHeader = makeSectionHeader("Details")
+        let details = AboutContent.details()
+
+        let views: [NSView] = [
+            header,
+            blurb,
+            actionsRow,
             updatesCard,
             helpCard,
             communityCard,
-            AboutContent.supportCard(),
-            spacing(4),
-            AboutContent.details(),
             spacing(8),
-            AboutContent.licenseLine(centered: centered),
-        ])
+            detailsHeader,
+            details,
+            spacing(8),
+            AboutContent.licenseLine(),
+        ]
 
-        let stack = vstack(
-            views,
-            spacing: Theme.Spacing.medium,
-            alignment: centered ? .centerX : .leading
-        )
-        if centered {
-            stack.setCustomSpacing(18, after: views[0])
-        }
+        let stack = vstack(views, spacing: 12)
+        stack.setCustomSpacing(16, after: header)
+        stack.setCustomSpacing(10, after: blurb)
+        stack.setCustomSpacing(20, after: actionsRow)
+        stack.setCustomSpacing(12, after: updatesCard)
+        stack.setCustomSpacing(12, after: helpCard)
+        stack.setCustomSpacing(20, after: communityCard)
+        stack.setCustomSpacing(8, after: detailsHeader)
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: topAnchor),
@@ -354,41 +352,25 @@ final class CommunityCardView: CardView {
 
 // MARK: - Shared pieces
 
-/// Rounded, tinted glyph tile used at the leading edge of each card.
-func cardIconTile(_ symbol: String, tint: NSColor) -> NSView {
-    let tile = CardView()
-    tile.radius = 10
-    tile.fillColor = tint.withAlphaComponent(0.14)
-    tile.borderColor = nil
-    tile.translatesAutoresizingMaskIntoConstraints = false
-
-    let icon = Symbols.view(symbol, pointSize: 17, weight: .semibold, color: tint)
-    tile.addSubview(icon)
-    NSLayoutConstraint.activate([
-        tile.widthAnchor.constraint(equalToConstant: 38),
-        tile.heightAnchor.constraint(equalToConstant: 38),
-        icon.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
-        icon.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
-    ])
-    return tile
-}
-
-/// Icon + title, with an optional trailing status view.
+/// A card title with an optional trailing status view.
+///
+/// Cards do not carry tinted glyph tiles: the heading is enough, and the tint
+/// budget belongs to live state, not to decoration.
 func cardHeader(
     symbol: String,
     tint: NSColor,
     title: String,
     trailing: NSView? = nil
 ) -> NSView {
-    let titleLabel = makeLabel(title, font: Theme.font(14, .semibold))
-    var items: [NSView] = [cardIconTile(symbol, tint: tint), titleLabel]
+    _ = symbol
+    _ = tint
+    let titleLabel = makeLabel(title, font: Theme.cardTitle)
+    var items: [NSView] = [titleLabel]
     if let trailing {
         items.append(inflexibleSpacer())
         items.append(trailing)
     }
-    let row = hstack(items, spacing: 10)
-    row.setCustomSpacing(12, after: items[0])
-    return row
+    return hstack(items, spacing: 10)
 }
 
 // MARK: - Bug report flow

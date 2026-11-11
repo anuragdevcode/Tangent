@@ -670,7 +670,7 @@ final class LibraryWindowController: NSWindowController,
             ? Format.count(total, singular: "wallpaper")
             : "\(visible) of \(total) wallpapers"
 
-        var subtitle = "\(countText) · referenced in place"
+        var subtitle = countText
         if selectedSection == .favorites {
             subtitle = "\(countText) in favorites"
         }
@@ -703,9 +703,9 @@ final class LibraryWindowController: NSWindowController,
         if selectedSection == .favorites, !hasSearch {
             empty = EmptyStateView(
                 symbol: "star",
-                title: "No Favorites Yet",
+                title: "No favorites",
                 message: "Star a wallpaper from its card or the inspector to keep it here.",
-                actionTitle: "Browse Library",
+                actionTitle: "Browse library",
                 actionSymbol: "square.grid.2x2"
             ) { [weak self] in
                 self?.show(section: .all)
@@ -713,9 +713,9 @@ final class LibraryWindowController: NSWindowController,
         } else if hasSearch {
             empty = EmptyStateView(
                 symbol: "magnifyingglass",
-                title: "No Wallpapers Match",
+                title: "No matching wallpapers",
                 message: "Try a different search, or clear it to see everything in this section.",
-                actionTitle: "Clear Search",
+                actionTitle: "Clear search",
                 actionSymbol: "xmark.circle"
             ) { [weak self] in
                 guard let self else { return }
@@ -725,11 +725,11 @@ final class LibraryWindowController: NSWindowController,
         } else {
             empty = EmptyStateView(
                 symbol: "sparkles.rectangle.stack",
-                title: "Your Library Is Empty",
+                title: "Your library is empty",
                 message: hasPacks
                     ? "No wallpapers in this section."
                     : "Add a wallpaper pack folder, a video, a GIF, an image or a web page to get started.",
-                actionTitle: "Add Wallpaper…",
+                actionTitle: "Add wallpaper…",
                 actionSymbol: "plus"
             ) { [weak self] in
                 self?.actions.addWallpaper()
@@ -1286,8 +1286,6 @@ private final class ToastView: CardView {
         super.init(frame: .zero)
         fillColor = Theme.cardFillElevated
         radius = Theme.Radius.control
-        castsShadow = true
-        shadowStrength = 0.28
 
         let label = makeLabel(text, font: Theme.callout, color: .labelColor)
         var views: [NSView] = [

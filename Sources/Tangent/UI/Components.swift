@@ -75,15 +75,6 @@ class CardView: ThemedView {
     var borderWidth: CGFloat = 1 {
         didSet { layer?.borderWidth = borderWidth }
     }
-    var castsShadow = false {
-        didSet { updateShadow() }
-    }
-    var shadowStrength: Float = 0.32 {
-        didSet { updateShadow() }
-    }
-    var shadowRadius: CGFloat = 14 {
-        didSet { updateShadow() }
-    }
 
     override func applyTheme() {
         layer?.cornerRadius = radius
@@ -91,31 +82,6 @@ class CardView: ThemedView {
         layer?.backgroundColor = fillColor.cgColor
         layer?.borderWidth = borderWidth
         layer?.borderColor = borderColor?.cgColor
-        updateShadow()
-    }
-
-    private func updateShadow() {
-        guard let layer else { return }
-        layer.masksToBounds = false
-        layer.shadowColor = Theme.cardShadow.cgColor
-        layer.shadowOpacity = castsShadow ? shadowStrength : 0
-        layer.shadowRadius = castsShadow ? shadowRadius : 0
-        layer.shadowOffset = NSSize(width: 0, height: -5)
-        layer.shadowPath = castsShadow
-            ? CGPath(roundedRect: bounds, cornerWidth: radius, cornerHeight: radius, transform: nil)
-            : nil
-    }
-
-    override func layout() {
-        super.layout()
-        if castsShadow {
-            layer?.shadowPath = CGPath(
-                roundedRect: bounds,
-                cornerWidth: radius,
-                cornerHeight: radius,
-                transform: nil
-            )
-        }
     }
 }
 
@@ -180,18 +146,11 @@ func makeWrappingLabel(
     return field
 }
 
+/// A quiet group label. Sentence case, no tracking: the label separates
+/// sections without turning into an eyebrow.
 func makeSectionHeader(_ text: String) -> NSTextField {
-    let label = NSTextField(labelWithString: text.uppercased())
-    label.font = Theme.label
-    label.textColor = .tertiaryLabelColor
-    label.attributedStringValue = NSAttributedString(
-        string: text.uppercased(),
-        attributes: [
-            .font: Theme.label,
-            .foregroundColor: NSColor.tertiaryLabelColor,
-            .kern: 0.6,
-        ]
-    )
+    let label = makeLabel(text, font: Theme.label, color: .secondaryLabelColor)
+    label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
     return label
 }
 
@@ -228,6 +187,29 @@ func flexibleSpacer() -> NSView {
     spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
     spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     return spacer
+}
+
+/// Wraps supporting text in the horizontal padding used by grouped rows.
+/// Vertical padding is supplied by the caller so a footnote can sit directly
+/// under the row it explains.
+func insetRow(
+    _ content: NSView,
+    top: CGFloat = 2,
+    leading: CGFloat = 10,
+    bottom: CGFloat = 10,
+    trailing: CGFloat = 10
+) -> NSView {
+    let container = NSView()
+    container.translatesAutoresizingMaskIntoConstraints = false
+    content.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(content)
+    NSLayoutConstraint.activate([
+        content.topAnchor.constraint(equalTo: container.topAnchor, constant: top),
+        content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: leading),
+        content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -trailing),
+        content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -bottom),
+    ])
+    return container
 }
 
 extension NSView {
@@ -486,48 +468,37 @@ final class IconButton: HoverButton {
 
 // MARK: - Badges and status
 
-/// Small tinted capsule used for wallpaper types and state.
+/// Small secondary label for type and state metadata.
+///
+/// It is deliberately plain text rather than a tinted capsule: state should
+/// read as a word next to the thing it describes, not as a chip competing for
+/// attention.
 final class BadgeView: ThemedView {
 
     private let label = NSTextField(labelWithString: "")
-    private let icon = NSImageView()
-    private let stack = NSStackView()
 
     private(set) var text: String = ""
     private(set) var tint: NSColor = .secondaryLabelColor
-    private var backgroundOverride: NSColor?
 
     init(text: String = "", symbol: String? = nil, tint: NSColor = .secondaryLabelColor) {
         super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerCurve = .continuous
-
         label.font = Theme.tiny
         label.maximumNumberOfLines = 1
-        icon.imageScaling = .scaleProportionallyDown
-
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 4
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.addArrangedSubview(icon)
-        stack.addArrangedSubview(label)
-        addSubview(stack)
-
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
-            icon.widthAnchor.constraint(equalToConstant: 9),
-            icon.heightAnchor.constraint(equalToConstant: 9),
+            label.topAnchor.constraint(equalTo: topAnchor),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
-
         configure(text: text, symbol: symbol, tint: tint)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
+
+    override var intrinsicContentSize: NSSize { label.intrinsicContentSize }
 
     func configure(
         text: String,
@@ -535,25 +506,22 @@ final class BadgeView: ThemedView {
         tint: NSColor,
         background: NSColor? = nil
     ) {
+        // Kept for call-site compatibility. Neither a glyph nor a fill belongs
+        // on a quiet metadata label.
+        _ = symbol
+        _ = background
         self.text = text
         self.tint = tint
-        self.backgroundOverride = background
         label.stringValue = text
-        label.textColor = tint
-        icon.image = symbol.flatMap { Symbols.image($0, pointSize: 9, weight: .semibold) }
-        icon.contentTintColor = tint
-        icon.isHidden = symbol == nil
-        layer?.backgroundColor = (background ?? tint.withAlphaComponent(0.14)).cgColor
-        needsLayout = true
-    }
-
-    override func applyTheme() {
-        layer?.cornerRadius = 6
-        layer?.backgroundColor = (backgroundOverride ?? tint.withAlphaComponent(0.14)).cgColor
+        label.textColor = tint.withAlphaComponent(0.9)
+        invalidateIntrinsicContentSize()
     }
 }
 
-/// Wider status capsule with a leading dot, used for playback state.
+/// A state readout: a colored dot followed by a plain word.
+///
+/// The dot carries the state color; the text stays secondary so a green
+/// "Live" does not outrank the content it describes.
 final class StatusPillView: ThemedView {
 
     private let dot = NSView()
@@ -563,25 +531,24 @@ final class StatusPillView: ThemedView {
 
     init(text: String = "", tint: NSColor = .secondaryLabelColor, symbol: String? = nil) {
         super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerCurve = .continuous
-        // A capsule is a label, not a bar: it must keep its intrinsic width
-        // when a stack offers it extra space next to text.
+        // A state readout keeps its intrinsic width when a stack offers it
+        // extra space next to text.
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
         dot.wantsLayer = true
         dot.translatesAutoresizingMaskIntoConstraints = false
 
         label.font = Theme.label
+        label.textColor = .secondaryLabelColor
         label.maximumNumberOfLines = 1
 
-        stack = hstack([dot, label], spacing: 6)
+        stack = hstack([dot, label], spacing: 5)
         addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             dot.widthAnchor.constraint(equalToConstant: 6),
             dot.heightAnchor.constraint(equalToConstant: 6),
         ])
@@ -594,37 +561,13 @@ final class StatusPillView: ThemedView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is unused") }
 
-    /// A capsule is as wide as its label. Without an intrinsic size a plain
-    /// `NSView` cannot hug its content, so a stack hands it the extra width.
-    override var intrinsicContentSize: NSSize {
-        let content = stack.fittingSize
-        return NSSize(width: content.width + 17, height: content.height + 8)
-    }
+    override var intrinsicContentSize: NSSize { stack.fittingSize }
 
     func configure(text: String, tint: NSColor) {
         self.tint = tint
         label.stringValue = text
         invalidateIntrinsicContentSize()
-        label.textColor = tint
         dot.layer?.backgroundColor = tint.cgColor
-        layer?.backgroundColor = tint.withAlphaComponent(0.13).cgColor
-    }
-
-    override func applyTheme() {
-        layer?.backgroundColor = tint.withAlphaComponent(0.13).cgColor
-        updateCornerRadius()
-    }
-
-    override func layout() {
-        super.layout()
-        updateCornerRadius()
-    }
-
-    /// A capsule uses half the height, not an arbitrarily large radius: Core
-    /// Animation's continuous-curve mask misbehaves with huge radii and can
-    /// paint a window-sized smear of the layer's background.
-    private func updateCornerRadius() {
-        layer?.cornerRadius = bounds.height / 2
     }
 }
 
@@ -717,9 +660,9 @@ final class BrandMarkView: NSView {
         layer?.masksToBounds = true
 
         gradient.colors = [
-            NSColor.controlAccentColor.blended(withFraction: 0.25, of: .systemTeal)?.cgColor
+            NSColor.controlAccentColor.blended(withFraction: 0.18, of: .white)?.cgColor
                 ?? NSColor.controlAccentColor.cgColor,
-            NSColor.controlAccentColor.blended(withFraction: 0.55, of: .systemPurple)?.cgColor
+            NSColor.controlAccentColor.blended(withFraction: 0.28, of: .black)?.cgColor
                 ?? NSColor.controlAccentColor.cgColor,
         ]
         gradient.startPoint = CGPoint(x: 0.1, y: 1)
@@ -782,34 +725,24 @@ final class EmptyStateView: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        let iconBackground = CardView()
-        iconBackground.radius = 18
-        iconBackground.fillColor = Theme.controlFill
-        iconBackground.translatesAutoresizingMaskIntoConstraints = false
-        let icon = Symbols.view(symbol, pointSize: 22, weight: .regular, color: .secondaryLabelColor)
-        iconBackground.addSubview(icon)
-        NSLayoutConstraint.activate([
-            iconBackground.widthAnchor.constraint(equalToConstant: 58),
-            iconBackground.heightAnchor.constraint(equalToConstant: 58),
-            icon.centerXAnchor.constraint(equalTo: iconBackground.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: iconBackground.centerYAnchor),
-        ])
+        let icon = Symbols.view(symbol, pointSize: 28, weight: .regular, color: .tertiaryLabelColor)
+        icon.translatesAutoresizingMaskIntoConstraints = false
 
         let titleLabel = makeLabel(title, font: Theme.paneTitle, color: .labelColor, lines: 2, alignment: .center)
         let messageLabel = makeWrappingLabel(message, font: Theme.callout, color: .secondaryLabelColor)
         messageLabel.alignment = .center
 
-        var views: [NSView] = [iconBackground, titleLabel, messageLabel]
+        var views: [NSView] = [icon, titleLabel, messageLabel]
         if let button = actionButton {
             button.target = self
             button.action = #selector(actionTapped)
             button.translatesAutoresizingMaskIntoConstraints = false
-            button.heightAnchor.constraint(equalToConstant: 30).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
             views.append(button)
         }
 
-        let stack = vstack(views, spacing: 10, alignment: .centerX)
-        stack.setCustomSpacing(14, after: iconBackground)
+        let stack = vstack(views, spacing: 8, alignment: .centerX)
+        stack.setCustomSpacing(14, after: icon)
         stack.setCustomSpacing(6, after: titleLabel)
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -865,13 +798,16 @@ final class GroupedSection: NSView {
             views.append(makeSectionHeader(title))
         }
         views.append(card)
-        let outer = vstack(views, spacing: 7)
+        let outer = vstack(views, spacing: 8)
         addSubview(outer)
         NSLayoutConstraint.activate([
             outer.topAnchor.constraint(equalTo: topAnchor),
             outer.leadingAnchor.constraint(equalTo: leadingAnchor),
             outer.trailingAnchor.constraint(equalTo: trailingAnchor),
             outer.bottomAnchor.constraint(equalTo: bottomAnchor),
+            // The card spans the group even when its rows are short, so two
+            // sections in one pane share the same edges.
+            card.widthAnchor.constraint(equalTo: outer.widthAnchor),
         ])
     }
 
@@ -897,19 +833,10 @@ final class SettingsRow: NSView {
 
         var leadingViews: [NSView] = []
         if let symbol {
-            let iconBox = CardView()
-            iconBox.radius = 6
-            iconBox.fillColor = Theme.controlFill
-            iconBox.translatesAutoresizingMaskIntoConstraints = false
-            let icon = Symbols.view(symbol, pointSize: 12, weight: .medium, color: .secondaryLabelColor)
-            iconBox.addSubview(icon)
-            NSLayoutConstraint.activate([
-                iconBox.widthAnchor.constraint(equalToConstant: 24),
-                iconBox.heightAnchor.constraint(equalToConstant: 24),
-                icon.centerXAnchor.constraint(equalTo: iconBox.centerXAnchor),
-                icon.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
-            ])
-            leadingViews.append(iconBox)
+            let icon = Symbols.view(symbol, pointSize: 15, color: .secondaryLabelColor)
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            icon.widthAnchor.constraint(equalToConstant: 18).isActive = true
+            leadingViews.append(icon)
         }
 
         let titleLabel = makeLabel(title, font: Theme.body, color: .labelColor)
@@ -927,10 +854,10 @@ final class SettingsRow: NSView {
         let row = hstack(views, spacing: 10)
         addSubview(row)
         NSLayoutConstraint.activate([
-            row.topAnchor.constraint(equalTo: topAnchor, constant: 9),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 9),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+            row.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
         ])
 
         if let action {

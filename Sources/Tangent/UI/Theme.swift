@@ -8,11 +8,11 @@ import AppKit
 enum Theme {
 
     enum Radius {
-        static let card: CGFloat = 14
-        static let preview: CGFloat = 11
-        static let control: CGFloat = 8
-        static let row: CGFloat = 7
-        static let pill: CGFloat = 11
+        static let card: CGFloat = 10
+        static let preview: CGFloat = 8
+        static let control: CGFloat = 6
+        static let row: CGFloat = 6
+        static let pill: CGFloat = 6
     }
 
     enum Spacing {
@@ -20,8 +20,8 @@ enum Theme {
         static let small: CGFloat = 8
         static let medium: CGFloat = 12
         static let regular: CGFloat = 16
-        static let large: CGFloat = 22
-        static let section: CGFloat = 28
+        static let large: CGFloat = 24
+        static let section: CGFloat = 32
     }
 
     // MARK: - Colors
@@ -43,18 +43,18 @@ enum Theme {
     /// Card fills sit on top of window material and stay legible in both
     /// appearances without looking like opaque panels.
     static let cardFill = dynamic(
-        dark: NSColor(white: 1, alpha: 0.055),
+        dark: NSColor(white: 1, alpha: 0.05),
         light: NSColor(white: 0, alpha: 0.035)
     )
 
     static let cardFillElevated = dynamic(
-        dark: NSColor(white: 1, alpha: 0.085),
+        dark: NSColor(white: 1, alpha: 0.075),
         light: NSColor(white: 0, alpha: 0.055)
     )
 
-    /// A one-pixel inner edge that defines floating cards against the blur.
+    /// A one-pixel edge that defines grouped rows against the blur.
     static let hairline = dynamic(
-        dark: NSColor(white: 1, alpha: 0.09),
+        dark: NSColor(white: 1, alpha: 0.08),
         light: NSColor(white: 0, alpha: 0.075)
     )
 
@@ -64,18 +64,18 @@ enum Theme {
     )
 
     static let controlFillHover = dynamic(
-        dark: NSColor(white: 1, alpha: 0.13),
-        light: NSColor(white: 0, alpha: 0.095)
+        dark: NSColor(white: 1, alpha: 0.12),
+        light: NSColor(white: 0, alpha: 0.09)
     )
 
     static let rowHover = dynamic(
-        dark: NSColor(white: 1, alpha: 0.055),
+        dark: NSColor(white: 1, alpha: 0.05),
         light: NSColor(white: 0, alpha: 0.04)
     )
 
     static let selectionFill = dynamic(
-        dark: NSColor.controlAccentColor.withAlphaComponent(0.22),
-        light: NSColor.controlAccentColor.withAlphaComponent(0.15)
+        dark: NSColor.controlAccentColor.withAlphaComponent(0.18),
+        light: NSColor.controlAccentColor.withAlphaComponent(0.13)
     )
 
     static let sidebarFill = dynamic(
@@ -94,15 +94,13 @@ enum Theme {
     )
 
     static let accent = NSColor.controlAccentColor
-    /// Ko-fi's brand blue, used only by the support button.
+    /// Ko-fi's brand blue. Kept as a token for the support window and its
+    /// self-test; the About button itself uses the quiet outlined style.
     static let koFi = NSColor(srgbRed: 0.161, green: 0.671, blue: 0.878, alpha: 1)
     static let warning = NSColor.systemOrange
     static let positive = NSColor.systemGreen
     static let secondaryText = NSColor.secondaryLabelColor
     static let tertiaryText = NSColor.tertiaryLabelColor
-
-    static let cardShadow = NSColor.black.withAlphaComponent(0.28)
-    static let accentGlow = NSColor.controlAccentColor.withAlphaComponent(0.45)
 
     static func dynamic(dark: NSColor, light: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in
@@ -117,24 +115,26 @@ enum Theme {
         .systemFont(ofSize: size, weight: weight)
     }
 
-    static let windowTitle = font(22, .bold)
-    static let paneTitle = font(17, .semibold)
-    static let cardTitle = font(13, .semibold)
+    /// Page-level heading. Size carries the hierarchy; weight stays moderate so
+    /// the window does not read like a landing page.
+    static let windowTitle = font(20, .medium)
+    static let paneTitle = font(15, .semibold)
+    static let cardTitle = font(13, .medium)
     static let body = font(13, .regular)
     static let callout = font(12, .regular)
     static let caption = font(11, .regular)
-    static let label = font(11, .medium)
-    static let tiny = font(10, .medium)
-    static let mono = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+    static let label = font(11, .regular)
+    static let tiny = font(10, .regular)
+    static let mono = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
     static let monoSmall = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
 
     // MARK: - Motion
 
-    static let hoverDuration: TimeInterval = 0.18
-    static let panelDuration: TimeInterval = 0.24
+    static let hoverDuration: TimeInterval = 0.16
+    static let panelDuration: TimeInterval = 0.2
 
-    /// AppKit's constraint animation. The timing curve is close to the
-    /// spring-like feel of system panels without needing a custom animator.
+    /// AppKit's constraint animation, using a plain ease so panels settle
+    /// instead of bouncing.
     static func animate(
         _ duration: TimeInterval = panelDuration,
         changes: () -> Void,
@@ -148,17 +148,5 @@ enum Theme {
         } completionHandler: {
             completion?()
         }
-    }
-
-    static func springAnimation(keyPath: String, from: Any?, to: Any?) -> CASpringAnimation {
-        let animation = CASpringAnimation(keyPath: keyPath)
-        animation.fromValue = from
-        animation.toValue = to
-        animation.damping = 18
-        animation.stiffness = 220
-        animation.mass = 0.9
-        animation.initialVelocity = 0
-        animation.duration = animation.settlingDuration
-        return animation
     }
 }

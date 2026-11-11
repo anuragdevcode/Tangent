@@ -21,9 +21,9 @@ final class KoFiSupportButton: HoverButton {
 
     init() {
         super.init(
-            "Support me on Ko-fi",
-            symbol: "cup.and.saucer.fill",
-            style: .koFi,
+            "Support on Ko-fi",
+            symbol: "cup.and.saucer",
+            style: .outlined,
             target: nil,
             action: nil
         )

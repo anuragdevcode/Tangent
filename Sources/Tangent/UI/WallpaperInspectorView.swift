@@ -13,7 +13,7 @@ final class WallpaperInspectorView: NSView {
     private let authorLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
     private let reasonLabel = makeWrappingLabel("", font: Theme.caption, color: .systemOrange)
     private let typeBadge = BadgeView()
-    private let activeBadge = BadgeView(text: "Current", symbol: "checkmark", tint: Theme.accent)
+    private let activeBadge = BadgeView(text: "Playing", symbol: "checkmark", tint: Theme.secondaryText)
     private let favoriteButton = IconButton(symbol: "star", pointSize: 12, style: .quiet, toolTip: "Favorite")
     private let primaryButton = HoverButton("Set for This Screen", symbol: "display", style: .accent)
     private let secondaryButton = HoverButton("Set for All Screens", symbol: "display.2", style: .outlined)
@@ -226,7 +226,7 @@ final class WallpaperInspectorView: NSView {
         typeBadge.configure(
             text: pack.info.type.displayName,
             symbol: pack.info.type.glyph,
-            tint: pack.typeTint
+            tint: .secondaryLabelColor
         )
 
         let isShowing = pack.isShowing(in: snapshot)

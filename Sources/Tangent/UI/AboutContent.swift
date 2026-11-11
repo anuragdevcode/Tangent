@@ -31,39 +31,33 @@ final class LinkButton: HoverButton {
 /// About page in the main window.
 enum AboutContent {
 
-    static func mark(size: CGFloat = 84) -> NSView {
+    static func mark(size: CGFloat = 64) -> NSView {
         BrandMarkView(size: size)
     }
 
-    static func titleBlock(centered: Bool = true) -> NSView {
-        let alignment: NSTextAlignment = centered ? .center : .left
-        let title = makeLabel("Tangent", font: Theme.font(26, .bold), alignment: alignment)
+    static func titleBlock() -> NSView {
+        let title = makeLabel("Tangent", font: Theme.font(17, .semibold))
+        let version = makeLabel(
+            "Version \(Format.version())",
+            font: Theme.caption,
+            color: .tertiaryLabelColor
+        )
         let tagline = makeLabel(
-            "Live wallpapers, native to macOS.",
-            font: Theme.body,
-            color: .secondaryLabelColor,
-            alignment: alignment
-        )
-        let version = BadgeView(
-            text: "Version \(Format.version())",
-            symbol: "checkmark.seal",
-            tint: Theme.accent
-        )
-        let versionRow = centered ? centeredRow([version]) : hstack([version])
-        let stack = vstack([title, tagline, versionRow], spacing: 5, alignment: centered ? .centerX : .leading)
-        stack.setCustomSpacing(10, after: tagline)
-        return stack
-    }
-
-    static func blurb(centered: Bool = true) -> NSTextField {
-        let label = makeWrappingLabel(
-            "A native, open-source wallpaper engine for Apple Silicon. Tangent renders video, "
-            + "web, GIF and image wallpapers behind the desktop icons, with per-display "
-            + "assignments, playback rules and global shortcuts.",
+            "Wallpaper engine for macOS",
             font: Theme.callout,
             color: .secondaryLabelColor
         )
-        label.alignment = centered ? .center : .left
+        return vstack([title, version, tagline], spacing: 2)
+    }
+
+    static func blurb() -> NSTextField {
+        let label = makeWrappingLabel(
+            "A native wallpaper engine for Apple Silicon. Tangent plays video, web, GIF and "
+            + "image wallpapers behind the desktop icons, with per-display assignments, "
+            + "playback rules and global shortcuts.",
+            font: Theme.callout,
+            color: .secondaryLabelColor
+        )
         return label
     }
 
@@ -75,15 +69,14 @@ enum AboutContent {
             style: .outlined,
             url: TangentLinks.repository
         )
-        return centeredRow([support, github], spacing: 10)
+        return hstack([support, github], spacing: 8)
     }
 
-    static func licenseLine(centered: Bool = true) -> NSView {
+    static func licenseLine() -> NSView {
         let label = makeLabel(
             "GPL-3.0 · © 2026 Tangent contributors",
             font: Theme.caption,
-            color: .tertiaryLabelColor,
-            alignment: centered ? .center : .left
+            color: .tertiaryLabelColor
         )
         let license = LinkButton(
             "License",
@@ -111,83 +104,25 @@ enum AboutContent {
             ("libmpv", Format.libmpv),
         ]
 
-        let grid = NSGridView()
-        grid.rowSpacing = 7
-        grid.columnSpacing = 22
+        let grid = NSStackView()
+        grid.orientation = .vertical
+        grid.alignment = .leading
+        grid.spacing = 4
+        grid.translatesAutoresizingMaskIntoConstraints = false
         for (key, value) in rows {
             let keyLabel = makeLabel(key, font: Theme.label, color: .secondaryLabelColor)
+            keyLabel.translatesAutoresizingMaskIntoConstraints = false
+            keyLabel.widthAnchor.constraint(equalToConstant: 92).isActive = true
             let valueLabel = makeLabel(value, font: Theme.caption, color: .labelColor)
             valueLabel.isSelectable = true
-            grid.addRow(with: [keyLabel, valueLabel])
+            let row = hstack([keyLabel, valueLabel], spacing: 12)
+            grid.addArrangedSubview(row)
         }
-        grid.column(at: 0).xPlacement = .leading
-        grid.column(at: 1).xPlacement = .leading
-        grid.translatesAutoresizingMaskIntoConstraints = false
         return grid
-    }
-
-    static func supportCard(compact: Bool = false) -> NSView {
-        let card = CardView()
-        card.fillColor = Theme.cardFill
-        card.radius = Theme.Radius.card
-        card.translatesAutoresizingMaskIntoConstraints = false
-
-        let heart = CardView()
-        heart.radius = 10
-        heart.fillColor = NSColor.systemPink.withAlphaComponent(0.14)
-        heart.translatesAutoresizingMaskIntoConstraints = false
-        let heartIcon = Symbols.view("heart.fill", pointSize: 18, weight: .medium, color: .systemPink)
-        heart.addSubview(heartIcon)
-        NSLayoutConstraint.activate([
-            heart.widthAnchor.constraint(equalToConstant: 42),
-            heart.heightAnchor.constraint(equalToConstant: 42),
-            heartIcon.centerXAnchor.constraint(equalTo: heart.centerXAnchor),
-            heartIcon.centerYAnchor.constraint(equalTo: heart.centerYAnchor),
-        ])
-
-        let title = makeLabel("Support Tangent", font: Theme.cardTitle)
-        let message = makeWrappingLabel(
-            compact
-                ? "Free and open source. If Tangent improves your desktop, you can support the developer on Ko-fi."
-                : "Tangent is free and open source. If it makes your desktop better, you can support "
-                    + "development on Ko-fi — it directly funds new backends and polish.",
-            font: Theme.caption,
-            color: .secondaryLabelColor
-        )
-        let text = vstack([title, message], spacing: 3)
-
-        let supportLink = KoFiSupportButton()
-
-        let content: NSView
-        if compact {
-            let row = hstack([heart, text, inflexibleSpacer(), supportLink], spacing: 12)
-            content = row
-        } else {
-            let row = hstack([heart, text], spacing: 12)
-            content = vstack([row, supportLink], spacing: 12)
-        }
-
-        card.pin(content, insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))
-        return card
     }
 }
 
 // MARK: - Small layout helpers
-
-func centeredRow(_ views: [NSView], spacing: CGFloat = 8) -> NSView {
-    let container = NSView()
-    container.translatesAutoresizingMaskIntoConstraints = false
-    let stack = hstack(views, spacing: spacing)
-    container.addSubview(stack)
-    NSLayoutConstraint.activate([
-        stack.topAnchor.constraint(equalTo: container.topAnchor),
-        stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-        stack.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor),
-        stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-    ])
-    return container
-}
 
 func inflexibleSpacer() -> NSView {
     let spacer = NSView()

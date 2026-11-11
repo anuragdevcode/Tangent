@@ -116,7 +116,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         ])
 
         paneSelector = NSSegmentedControl(
-            labels: ["General", "Playback", "Shortcuts", "About & Feedback"],
+            labels: ["General", "Playback", "Shortcuts", "About"],
             trackingMode: .selectOne,
             target: self,
             action: #selector(paneChanged)
@@ -167,16 +167,20 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - General
 
     private func generalPane() -> NSView {
-        let mark = BrandMarkView(size: 54)
-        let title = makeLabel("Tangent", font: Theme.font(26, .bold))
+        let mark = BrandMarkView(size: 44)
+        let title = makeLabel("Tangent", font: Theme.font(17, .semibold))
         let subtitle = makeLabel(
-            "Native wallpaper engine for macOS",
+            "Wallpaper engine for macOS",
             font: Theme.callout,
             color: .secondaryLabelColor
         )
-        let version = BadgeView(text: Format.version(), symbol: "checkmark.seal", tint: Theme.accent)
-        let titleBlock = vstack([title, subtitle, version], spacing: 3, alignment: .leading)
-        let header = hstack([mark, titleBlock], spacing: 14)
+        let version = makeLabel(
+            "Version \(Format.version())",
+            font: Theme.caption,
+            color: .tertiaryLabelColor
+        )
+        let titleBlock = vstack([title, subtitle, version], spacing: 2, alignment: .leading)
+        let header = hstack([mark, titleBlock], spacing: 12)
 
         packCountLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
         hiddenCountLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
@@ -188,26 +192,33 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         restoreButton.toolTip = "Bring wallpapers removed from the library back"
 
         let librarySection = GroupedSection(
-            title: "Wallpaper Library",
+            title: "Wallpaper library",
             rows: [
                 SettingsRow(
                     symbol: "square.grid.2x2",
                     title: "Wallpapers",
-                    subtitle: "Referenced in place — adding a folder never copies it.",
+                    subtitle: "Files are used in place. Adding a folder does not copy it.",
                     trailing: trailingLabel(packCountLabel)
                 ),
                 HairlineView(),
                 SettingsRow(
                     symbol: "folder",
-                    title: "Library Folder",
+                    title: "Library folder",
                     subtitle: nil,
                     trailing: smallButton("Show in Finder", action: actions.revealLibraryFolder)
                 ),
                 HairlineView(),
                 SettingsRow(
+                    symbol: "externaldrive",
+                    title: "Location",
+                    subtitle: nil,
+                    trailing: trailingLabel(libraryPathLabel)
+                ),
+                HairlineView(),
+                SettingsRow(
                     symbol: "eye.slash",
-                    title: "Hidden Wallpapers",
-                    subtitle: "Removed through the app stay on disk. Restore them here.",
+                    title: "Hidden wallpapers",
+                    subtitle: "Removed wallpapers stay on disk. Restore them here.",
                     trailing: hstack(
                         [
                             hiddenCountLabel,
@@ -219,49 +230,45 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             ]
         )
 
-        let folderRow = SettingsRow(
-            symbol: "externaldrive",
-            title: "Location",
-            subtitle: nil,
-            trailing: trailingLabel(libraryPathLabel)
-        )
-
         screenSaverSwitch = makeSwitch { [weak self] isOn in
             self?.actions.setScreenSaverEnabled(isOn)
             self?.refresh()
         }
         screenSaverSwitch.setAccessibilityLabel("Use Tangent as Screen Saver")
-        let screenSaverSection = GroupedSection(
-            title: "Screen Saver",
-            rows: [
-                SettingsRow(
-                    symbol: "display",
-                    title: "Use Tangent as Screen Saver",
-                    subtitle: "Installs Tangent.saver and keeps it in sync with the desktop layout.",
-                    trailing: screenSaverSwitch
-                ),
-            ]
-        )
+
         screenSaverStatusLabel = makeWrappingLabel(
             "",
             font: Theme.caption,
             color: .secondaryLabelColor
         )
-        screenSaverStatusLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520).isActive = true
+
+        let screenSaverSection = GroupedSection(
+            title: "Screen saver",
+            rows: [
+                SettingsRow(
+                    symbol: "display",
+                    title: "Use Tangent as Screen Saver",
+                    subtitle: "Installs Tangent.saver and keeps it in step with the desktop.",
+                    trailing: screenSaverSwitch
+                ),
+                HairlineView(),
+                insetRow(screenSaverStatusLabel, top: 2, bottom: 10),
+            ]
+        )
 
         let actionsSection = GroupedSection(
             title: "Manage",
             rows: [
                 SettingsRow(
                     symbol: "plus",
-                    title: "Add Wallpaper…",
+                    title: "Add wallpaper…",
                     subtitle: "Video, image, GIF, web page or a wallpaper pack folder.",
                     trailing: smallButton("Add", action: actions.addWallpaper)
                 ),
                 HairlineView(),
                 SettingsRow(
                     symbol: "square.grid.2x2.fill",
-                    title: "Open Library",
+                    title: "Open library",
                     subtitle: "Browse, search and apply wallpapers.",
                     trailing: smallButton("Open", action: actions.openLibrary)
                 ),
@@ -269,8 +276,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         )
 
         let note = makeWrappingLabel(
-            "Tangent lives in the menu bar. Use the sparkles icon to change, pause or stop "
-            + "the wallpaper without opening this window.",
+            "Tangent runs in the menu bar. Use the sparkles menu to change, pause or stop "
+            + "the wallpaper without opening Settings.",
             font: Theme.caption,
             color: .tertiaryLabelColor
         )
@@ -279,19 +286,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let stack = vstack(
             [
                 header,
-                spacing(6),
                 librarySection,
-                folderRow,
                 screenSaverSection,
-                screenSaverStatusLabel,
                 actionsSection,
                 note,
             ],
             spacing: Theme.Spacing.regular
         )
         stack.setCustomSpacing(20, after: header)
-        stack.setCustomSpacing(6, after: screenSaverSection)
-        for wide in [librarySection, folderRow, screenSaverSection, actionsSection] {
+        stack.setCustomSpacing(18, after: librarySection)
+        stack.setCustomSpacing(18, after: screenSaverSection)
+        for wide in [librarySection, screenSaverSection, actionsSection] {
             wide.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
@@ -361,25 +366,25 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         ])
 
         let rules = GroupedSection(
-            title: "Playback Rules",
+            title: "Playback rules",
             rows: [
                 SettingsRow(
                     symbol: "rectangle.inset.filled",
-                    title: "Pause for Fullscreen Apps",
+                    title: "Pause for fullscreen apps",
                     subtitle: "Stop rendering while an app covers the main display.",
                     trailing: fullscreenSwitch
                 ),
                 HairlineView(),
                 SettingsRow(
                     symbol: "battery.50percent",
-                    title: "Pause on Battery",
+                    title: "Pause on battery",
                     subtitle: "Save power when the Mac is unplugged.",
                     trailing: batterySwitch
                 ),
                 HairlineView(),
                 SettingsRow(
                     symbol: "lock.display",
-                    title: "Pause When the Screen Locks",
+                    title: "Pause when the screen locks",
                     subtitle: "Stop decoding while the display is asleep or locked.",
                     trailing: lockSwitch
                 ),
@@ -387,8 +392,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         )
 
         let note = makeWrappingLabel(
-            "Rules are independent: playback resumes only when every reason has cleared, so "
-            + "closing a fullscreen app will not undo a manual pause.",
+            "Rules work independently. Playback resumes only after every reason has cleared, so "
+            + "closing a fullscreen app does not undo a manual pause.",
             font: Theme.caption,
             color: .tertiaryLabelColor
         )
@@ -457,14 +462,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             )
         }
 
-        let shortcuts = GroupedSection(title: "Global Shortcuts", rows: rows)
+        let shortcuts = GroupedSection(title: "Global shortcuts", rows: rows)
 
         let toggleSection = GroupedSection(
             title: nil,
             rows: [
                 SettingsRow(
                     symbol: "command",
-                    title: "Enable Global Shortcuts",
+                    title: "Enable global shortcuts",
                     subtitle: "Work while another app is frontmost. Carbon hot keys need no extra permission.",
                     trailing: hotkeySwitch
                 )
@@ -474,7 +479,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         bindingMessageLabel = makeWrappingLabel("", font: Theme.caption, color: .secondaryLabelColor)
         bindingMessageLabel.isHidden = true
 
-        let resetAll = smallButton("Reset All Shortcuts", action: resetAllShortcuts)
+        let resetAll = smallButton("Reset all shortcuts", action: resetAllShortcuts)
         let footerRow = hstack([resetAll, flexibleSpacer()])
 
         let note = makeWrappingLabel(
@@ -514,9 +519,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - About
 
     private func aboutPane() -> NSView {
-        let page = AboutFeedbackPage(centered: true, actions: actions)
+        let page = AboutFeedbackPage(actions: actions)
         aboutPage = page
-        return wrapInPage(page, maxWidth: 460)
+        return wrapInPage(page, maxWidth: 520)
     }
 
     // MARK: - Page scaffold
@@ -584,7 +589,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             if snapshot.defaultConfig == nil {
                 statusPill.configure(text: "Off", tint: .secondaryLabelColor)
                 statusTitle.stringValue = "No wallpaper set"
-                statusDetail.stringValue = "Choose one from the library to bring the desktop to life."
+                statusDetail.stringValue = "Choose a wallpaper from the library."
             } else {
                 statusPill.configure(
                     text: snapshot.isPaused ? "Paused" : "Live",

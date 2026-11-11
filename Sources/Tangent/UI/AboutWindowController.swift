@@ -7,9 +7,9 @@ final class AboutWindowController: NSWindowController {
     private let aboutPage: AboutFeedbackPage
 
     init(actions: AppActions) {
-        aboutPage = AboutFeedbackPage(centered: true, actions: actions)
+        aboutPage = AboutFeedbackPage(actions: actions)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 620),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -24,7 +24,7 @@ final class AboutWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let background = VisualEffectView(material: .hudWindow, blending: .behindWindow)
+        let background = VisualEffectView(material: .windowBackground, blending: .behindWindow)
         background.translatesAutoresizingMaskIntoConstraints = false
 
         let content = aboutPage

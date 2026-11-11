@@ -14,8 +14,6 @@ final class WallpaperCardView: NSCollectionViewItem {
     private let preview = CardPreviewView()
     private let titleLabel = makeLabel("", font: Theme.cardTitle)
     private let subtitleLabel = makeLabel("", font: Theme.caption, color: .secondaryLabelColor)
-    private let typeBadge = BadgeView()
-    private let activeBadge = BadgeView()
     private let favoriteButton = IconButton(
         symbol: "star",
         pointSize: 11,
@@ -46,9 +44,6 @@ final class WallpaperCardView: NSCollectionViewItem {
 
         container.radius = Theme.Radius.card
         container.fillColor = Theme.cardFill
-        container.castsShadow = true
-        container.shadowStrength = 0
-        container.shadowRadius = 16
         container.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(container)
         NSLayoutConstraint.activate([
@@ -62,12 +57,8 @@ final class WallpaperCardView: NSCollectionViewItem {
         preview.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(preview)
 
-        typeBadge.translatesAutoresizingMaskIntoConstraints = false
-        activeBadge.translatesAutoresizingMaskIntoConstraints = false
         favoriteButton.translatesAutoresizingMaskIntoConstraints = false
         unsupportedLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(typeBadge)
-        container.addSubview(activeBadge)
         container.addSubview(favoriteButton)
 
         favoriteButton.target = self
@@ -86,14 +77,8 @@ final class WallpaperCardView: NSCollectionViewItem {
             preview.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
             preview.heightAnchor.constraint(equalTo: preview.widthAnchor, multiplier: 10.0 / 16.0),
 
-            typeBadge.topAnchor.constraint(equalTo: preview.topAnchor, constant: 7),
-            typeBadge.leadingAnchor.constraint(equalTo: preview.leadingAnchor, constant: 7),
-
             favoriteButton.topAnchor.constraint(equalTo: preview.topAnchor, constant: 5),
             favoriteButton.trailingAnchor.constraint(equalTo: preview.trailingAnchor, constant: -5),
-
-            activeBadge.bottomAnchor.constraint(equalTo: preview.bottomAnchor, constant: -7),
-            activeBadge.trailingAnchor.constraint(equalTo: preview.trailingAnchor, constant: -7),
 
             titleLabel.topAnchor.constraint(equalTo: preview.bottomAnchor, constant: 8),
             titleLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 11),
@@ -123,20 +108,15 @@ final class WallpaperCardView: NSCollectionViewItem {
 
         titleLabel.stringValue = pack.info.title
 
+        var subtitle = pack.info.type.displayName
         if let author = pack.info.author, !author.isEmpty {
-            subtitleLabel.stringValue = author
-            subtitleLabel.textColor = .secondaryLabelColor
-        } else {
-            subtitleLabel.stringValue = pack.info.type.displayName
-            subtitleLabel.textColor = .secondaryLabelColor
+            subtitle = author
         }
-
-        typeBadge.configure(
-            text: pack.info.type.displayName.uppercased(),
-            symbol: pack.info.type.glyph,
-            tint: .white,
-            background: NSColor.black.withAlphaComponent(0.55)
-        )
+        if isShowing {
+            subtitle += " · Playing"
+        }
+        subtitleLabel.stringValue = subtitle
+        subtitleLabel.textColor = .secondaryLabelColor
 
         favoriteButton.image = Symbols.image(
             isFavorite ? "star.fill" : "star",
@@ -145,16 +125,6 @@ final class WallpaperCardView: NSCollectionViewItem {
         )
         favoriteButton.contentTintColor = isFavorite ? .systemYellow : .white
         favoriteButton.toolTip = isFavorite ? "Remove from Favorites" : "Add to Favorites"
-
-        activeBadge.isHidden = !isShowing
-        if isShowing {
-            activeBadge.configure(
-                text: "Current Desktop",
-                symbol: "checkmark",
-                tint: .white,
-                background: Theme.accent
-            )
-        }
 
         if let reason = pack.unsupportedReason {
             unsupportedLabel.stringValue = reason
@@ -175,8 +145,6 @@ final class WallpaperCardView: NSCollectionViewItem {
         super.prepareForReuse()
         preview.stop()
         isHovering = false
-        container.layer?.transform = CATransform3DIdentity
-        container.shadowStrength = 0
         pack = nil
     }
 
@@ -189,7 +157,7 @@ final class WallpaperCardView: NSCollectionViewItem {
     private func updateSelectionAppearance() {
         guard isViewLoaded else { return }
         let selected = isSelected
-        container.borderWidth = selected || isShowingNow ? 2 : 1
+        container.borderWidth = 1
         container.borderColor = selected || isShowingNow ? Theme.accent : Theme.hairline
         container.fillColor = selected ? Theme.cardFillElevated : Theme.cardFill
     }
@@ -200,18 +168,8 @@ final class WallpaperCardView: NSCollectionViewItem {
         guard hovering != isHovering else { return }
         isHovering = hovering
 
-        let scale: CGFloat = hovering ? 1.02 : 1
-        let transform = CATransform3DMakeScale(scale, scale, 1)
-        let current = container.layer?.presentation()?.transform ?? container.layer?.transform ?? CATransform3DIdentity
-        let animation = Theme.springAnimation(
-            keyPath: "transform",
-            from: NSValue(caTransform3D: current),
-            to: NSValue(caTransform3D: transform)
-        )
-        container.layer?.transform = transform
-        container.layer?.add(animation, forKey: "hover-lift")
-
-        container.shadowStrength = hovering ? 0.38 : 0
+        // Hover starts the muted inline preview. Nothing lifts, scales or
+        // shadows: the artwork is the moment, the card stays put.
         if hovering {
             preview.beginHover()
         } else {
