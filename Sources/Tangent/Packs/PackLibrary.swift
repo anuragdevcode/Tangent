@@ -17,6 +17,8 @@ final class PackLibrary {
     /// Packs removed through the interface. Hiding rather than deleting keeps
     /// the promise that Tangent never removes files from disk.
     private(set) var hidden: Set<String>
+    /// First-party packs that ship inside the app bundle.
+    private(set) var bundledRoot: URL?
 
     /// `~/Library/Application Support/Tangent/Library`
     static var defaultRoot: URL {
@@ -24,10 +26,28 @@ final class PackLibrary {
         return support.appendingPathComponent("Tangent/Library", isDirectory: true)
     }
 
+    /// `Tangent.app/Contents/Resources/Wallpapers`, when the build shipped any.
+    static var bundledRoot: URL? {
+        guard let url = Bundle.main.resourceURL?
+            .appendingPathComponent("Wallpapers", isDirectory: true),
+            FileManager.default.fileExists(atPath: url.path)
+        else { return nil }
+        return url
+    }
+
     /// `fallbackRoot` is only used when the store has no roots yet. Tests pass a
     /// scratch directory so they never scan the user's real library.
-    init(defaults: UserDefaults = .standard, fallbackRoot: URL = PackLibrary.defaultRoot) {
+    ///
+    /// `bundledRoot` holds the first-party packs inside the app bundle. It is
+    /// scanned like a library root but never written to the user's defaults,
+    /// because it moves with the app.
+    init(
+        defaults: UserDefaults = .standard,
+        fallbackRoot: URL = PackLibrary.defaultRoot,
+        bundledRoot: URL? = PackLibrary.bundledRoot
+    ) {
         self.defaults = defaults
+        self.bundledRoot = bundledRoot
         let rootPaths = defaults.stringArray(forKey: rootsKey) ?? []
         let entryPaths = defaults.stringArray(forKey: entriesKey) ?? []
         self.roots = rootPaths.map { URL(fileURLWithPath: $0) }
@@ -81,7 +101,7 @@ final class PackLibrary {
     func scan() -> [Pack] {
         var found: [String: Pack] = [:]
 
-        for root in roots {
+        for root in roots + [bundledRoot].compactMap({ $0 }) {
             for child in contents(of: root) {
                 if let pack = Pack.synthetic(fileURL: child), !hidden.contains(pack.id) {
                     found[pack.id] = pack

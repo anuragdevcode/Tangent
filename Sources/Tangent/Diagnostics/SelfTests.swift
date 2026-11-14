@@ -185,6 +185,58 @@ enum SelfTests {
         expect(byName["apply"] == nil, "button omitted")
         expect(JSONValue.string("a\"b\nc").jsLiteral == "\"a\\\"b\\nc\"", "JS string escaping")
 
+        // MARK: Environment
+
+        print("Environment")
+        expect(DayPhase.value(hour: 0) == 0, "midnight is phase 0")
+        expect(abs(DayPhase.value(hour: 12) - 0.5) < 0.0001, "noon is phase 0.5")
+        expect(abs(DayPhase.value(hour: 6, minute: 0) - 0.25) < 0.0001, "6:00 is a quarter through the day")
+        expect(DayPhase.value(hour: 30) == DayPhase.value(hour: 23),
+               "out-of-range hours clamp instead of overflowing")
+
+        let centre = PointerGeometry.normalized(point: CGPoint(x: 50, y: 50),
+                                                in: CGRect(x: 0, y: 0, width: 100, height: 100))
+        expect(centre.point == CGPoint(x: 0.5, y: 0.5) && centre.inside,
+               "the centre of a frame normalizes to 0.5, 0.5")
+        let topLeft = PointerGeometry.normalized(point: CGPoint(x: 0, y: 100),
+                                                 in: CGRect(x: 0, y: 0, width: 100, height: 100))
+        expect(topLeft.point == CGPoint(x: 0, y: 0) && topLeft.inside,
+               "AppKit's bottom-left origin becomes top-left 0, 0")
+        let outside = PointerGeometry.normalized(point: CGPoint(x: 200, y: -20),
+                                                 in: CGRect(x: 0, y: 0, width: 100, height: 100))
+        expect(outside.point == CGPoint(x: 1, y: 1) && !outside.inside,
+               "a pointer beyond the frame clamps to the edge and reports outside")
+        let emptyFrame = PointerGeometry.normalized(point: .zero, in: .zero)
+        expect(emptyFrame.point == CGPoint(x: 0.5, y: 0.5) && !emptyFrame.inside,
+               "a zero-sized frame falls back to the centre")
+
+        // The audio probe debounces device state so a gap between tracks does
+        // not make the wallpaper flicker.
+        var audioRunning = false
+        let audio = AudioActivityMonitor(provider: { audioRunning }, hold: 1.5)
+        let base = Date(timeIntervalSince1970: 1_000)
+        audio.poll(now: base)
+        expect(!audio.isPlaying, "silence reports not playing")
+        audioRunning = true
+        audio.poll(now: base.addingTimeInterval(2))
+        expect(audio.isPlaying, "audio on the default output reports playing")
+        audioRunning = false
+        audio.poll(now: base.addingTimeInterval(3))
+        expect(audio.isPlaying, "a short gap keeps the playing state")
+        audio.poll(now: base.addingTimeInterval(4.6))
+        expect(!audio.isPlaying, "a longer gap settles to not playing")
+
+        let monitor = EnvironmentMonitor.shared
+        let before = monitor.observerCount
+        var observed: EnvironmentSnapshot?
+        let token = monitor.addObserver { observed = $0 }
+        expect(monitor.observerCount == before + 1, "adding an observer starts tracking")
+        expect(observed != nil, "a new observer gets the current snapshot immediately")
+        expect(observed.map { (0...1).contains($0.dayPhase) } == true,
+               "the snapshot carries a valid day phase")
+        monitor.removeObserver(token)
+        expect(monitor.observerCount == before, "removing the last observer stops tracking")
+
         // MARK: Library scan
 
         print("Library scan")
@@ -195,7 +247,7 @@ enum SelfTests {
         // would otherwise change every count in this section.
         let scratchRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("tangent-test-library", isDirectory: true)
-        let library = PackLibrary(defaults: defaults, fallbackRoot: scratchRoot)
+        let library = PackLibrary(defaults: defaults, fallbackRoot: scratchRoot, bundledRoot: nil)
         library.addRoot(fixturesRoot.appendingPathComponent("library"))
         let packs = library.scan()
 
@@ -225,6 +277,40 @@ enum SelfTests {
             expect(false, "fixture pack available for hide/restore checks")
         }
 
+        // MARK: Built-in packs
+
+        print("Built-in packs")
+        let builtInSuite = "tangent.tests.builtin"
+        UserDefaults.standard.removePersistentDomain(forName: builtInSuite)
+        let builtInDefaults = UserDefaults(suiteName: builtInSuite)!
+        let bundleRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tangent-test-bundle", isDirectory: true)
+        let bundledWallpapers = bundleRoot.appendingPathComponent("Wallpapers", isDirectory: true)
+        try? FileManager.default.removeItem(at: bundleRoot)
+        try? FileManager.default.createDirectory(at: bundledWallpapers, withIntermediateDirectories: true)
+        try? FileManager.default.copyItem(
+            at: fixturesRoot.appendingPathComponent("library/landing-web"),
+            to: bundledWallpapers.appendingPathComponent("Contour")
+        )
+        let builtInLibrary = PackLibrary(
+            defaults: builtInDefaults,
+            fallbackRoot: scratchRoot,
+            bundledRoot: bundledWallpapers
+        )
+        let builtInScan = builtInLibrary.scan()
+        expect(builtInScan.contains { $0.folder.lastPathComponent == "Contour" },
+               "the app bundle's wallpaper folder is scanned")
+        expect(!builtInLibrary.roots.contains(bundledWallpapers),
+               "the built-in folder is not persisted as a user root")
+        if let contour = builtInScan.first(where: { $0.folder.lastPathComponent == "Contour" }) {
+            builtInLibrary.hide(contour)
+            expect(!builtInLibrary.scan().contains { $0.id == contour.id },
+                   "a built-in pack can be hidden like any other")
+            builtInLibrary.restoreHidden()
+        }
+        try? FileManager.default.removeItem(at: bundleRoot)
+        UserDefaults.standard.removePersistentDomain(forName: builtInSuite)
+
         // MARK: Multiple wallpapers in one folder
 
         print("Library additions")
@@ -241,7 +327,7 @@ enum SelfTests {
         try? FileManager.default.copyItem(at: fixtureVideo, to: firstFile)
         try? FileManager.default.copyItem(at: fixtureVideo, to: secondFile)
 
-        let addLibrary = PackLibrary(defaults: addDefaults, fallbackRoot: dropFolder)
+        let addLibrary = PackLibrary(defaults: addDefaults, fallbackRoot: dropFolder, bundledRoot: nil)
         let addModel = LibraryModel(library: addLibrary, defaults: addDefaults)
         addModel.add(contentsOf: [firstFile, secondFile])
         expect(addModel.packs.count == 2, "adds two files from one folder (got \(addModel.packs.count))")
@@ -259,7 +345,7 @@ enum SelfTests {
         let folderSuite = "tangent.tests.folder"
         UserDefaults.standard.removePersistentDomain(forName: folderSuite)
         let folderDefaults = UserDefaults(suiteName: folderSuite)!
-        let folderLibrary = PackLibrary(defaults: folderDefaults, fallbackRoot: folderRoot)
+        let folderLibrary = PackLibrary(defaults: folderDefaults, fallbackRoot: folderRoot, bundledRoot: nil)
         let folderModel = LibraryModel(library: folderLibrary, defaults: folderDefaults)
         folderModel.add(contentsOf: [folderRoot])
         expect(folderModel.packs.count == 2, "adding a folder discovers the videos inside")
@@ -1210,6 +1296,32 @@ enum SelfTests {
             } == true, "staged web packs keep their metadata and assets")
             expect(stagedWeb?.rootFolder?.hasPrefix(stagedMediaRoot.path + "/") == true,
                    "the staged web root stays inside Application Support")
+
+            // Customised controls live under the original pack path, which the
+            // saver cannot see. Staging must carry the edited values across.
+            let propertyDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("tangent-test-properties", isDirectory: true)
+            try? FileManager.default.removeItem(at: propertyDirectory)
+            let propertyStore = PropertyStore(baseDirectory: propertyDirectory)
+            let webRoot = fixturesRoot.appendingPathComponent("library/landing-web")
+            expect(propertyStore.setValue(.number(4.2), for: "speed", root: webRoot),
+                   "the test customises a web pack control")
+            let customised = ScreenSaverStager(
+                storage: restaged,
+                propertyStore: propertyStore
+            ).prepare(
+                ScreenSaverConfiguration(layout: DisplayLayout(defaultConfig: webConfig))
+            ).layout.defaultConfig
+            let stagedProperties = customised?.rootFolder.map {
+                URL(fileURLWithPath: $0).appendingPathComponent(PackFormat.propertiesFile)
+            }
+            let stagedControl = stagedProperties
+                .flatMap { try? JSONValue.load(from: $0) }?
+                .value(forKey: "speed")?
+                .value(forKey: "value")
+            expect(stagedControl == .number(4.2),
+                   "staged packs carry the user's customised control values")
+            try? FileManager.default.removeItem(at: propertyDirectory)
         } else {
             expect(false, "fixture web pack produces a wallpaper config")
         }

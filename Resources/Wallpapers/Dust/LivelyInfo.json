@@ -1,0 +1,11 @@
+{
+  "Title": "Dust",
+  "Type": "web",
+  "FileName": "index.html",
+  "Thumbnail": "thumb.png",
+  "Author": "Tangent",
+  "Desc": "A dark room crossed by one shaft of light. Dust hangs in the beam, drifts when the pointer passes, and takes the colour of the hour.",
+  "Tags": ["original", "interactive", "atmosphere", "2.5d"],
+  "Version": 1,
+  "IsAbsolutePath": false
+}

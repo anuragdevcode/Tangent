@@ -1,0 +1,11 @@
+{
+  "Title": "Membrane",
+  "Type": "web",
+  "FileName": "index.html",
+  "Thumbnail": "thumb.png",
+  "Author": "Tangent",
+  "Desc": "A vast iridescent film stretched across the room. It breathes, bends toward the pointer, and picks up the light of the hour.",
+  "Tags": ["original", "interactive", "3d", "abstract"],
+  "Version": 1,
+  "IsAbsolutePath": false
+}

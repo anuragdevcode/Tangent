@@ -1,0 +1,7 @@
+{
+  "light":    { "type": "dropdown",    "text": "Light",         "value": 0, "items": ["Auto", "Day", "Dusk", "Night"] },
+  "season":   { "type": "dropdown",    "text": "Season",        "value": 1, "items": ["Spring", "Summer", "Autumn", "Winter"] },
+  "depth":    { "type": "slider",      "text": "Parallax",      "value": 0.6, "min": 0, "max": 1, "step": 0.05 },
+  "motes":    { "type": "checkbox",    "text": "Drifting motes", "value": true },
+  "grain":    { "type": "slider",      "text": "Paper grain",   "value": 0.35, "min": 0, "max": 1, "step": 0.05 }
+}

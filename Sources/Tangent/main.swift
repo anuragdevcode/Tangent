@@ -174,6 +174,193 @@ private func printJSON(_ object: [String: Any]) {
     print(text)
 }
 
+// MARK: - Wallpaper snapshot and environment probes
+
+/// Measures whether a web pack's animation loop actually ticks in a given host
+/// window. WebKit can throttle `requestAnimationFrame` for occluded windows, so
+/// this checks the desktop-level host specifically, not just an ordinary window.
+private func runWebFrameProbe(folderPath: String, useDesktopLevel: Bool) -> Never {
+    let folder = URL(fileURLWithPath: folderPath)
+    let entry = folder.appendingPathComponent("index.html")
+    let application = NSApplication.shared
+    application.setActivationPolicy(useDesktopLevel ? .accessory : .regular)
+    application.finishLaunching()
+
+    guard let wallpaper = WebWallpaper(
+        entry: entry,
+        root: folder,
+        controls: PropertyStore.shared.controls(forRoot: folder),
+        title: "frames",
+        type: .web
+    ) else {
+        printJSON(["ok": false, "error": "cannot open pack"])
+        exit(1)
+    }
+
+    let window: NSWindow
+    if useDesktopLevel, let screen = NSScreen.main {
+        window = WallpaperWindow(screen: screen)
+    } else {
+        window = NSWindow(
+            contentRect: NSRect(x: 120, y: 120, width: 800, height: 500),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        application.setActivationPolicy(.regular)
+        application.activate(ignoringOtherApps: true)
+    }
+    window.isReleasedWhenClosed = false
+    window.contentView = wallpaper.view
+    if useDesktopLevel {
+        window.orderFrontRegardless()
+    } else {
+        window.makeKeyAndOrderFront(nil)
+    }
+    wallpaper.play()
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+        wallpaper.evaluateForTesting(
+            """
+            JSON.stringify({
+              frames: window.__tangentFrames || 0,
+              visible: !document.hidden,
+              environment: (window.tangent && window.tangent.environment) || null
+            })
+            """
+        ) { result in
+            printJSON([
+                "level": useDesktopLevel ? "desktop" : "floating",
+                "result": result as? String ?? "nil",
+                "occluded": window.occlusionState.contains(.visible) ? false : true,
+            ])
+            wallpaper.close()
+            window.close()
+            exit(0)
+        }
+    }
+
+    withExtendedLifetime(wallpaper) {
+        application.run()
+    }
+    exit(1)
+}
+
+/// Renders a web pack to PNG, at an optional moment/state.
+///
+/// This is how the first-party pack thumbnails are produced: the gallery then
+/// shows the real wallpaper instead of a hand-drawn approximation.
+private func runWallpaperSnapshot(
+    folderPath: String,
+    outputPath: String,
+    script: String?
+) -> Never {
+    let folder = URL(fileURLWithPath: folderPath)
+    let entry = folder.appendingPathComponent("index.html")
+    let application = NSApplication.shared
+    application.setActivationPolicy(.accessory)
+    application.finishLaunching()
+
+    guard let wallpaper = WebWallpaper(
+        entry: entry,
+        root: folder,
+        controls: PropertyStore.shared.controls(forRoot: folder),
+        title: "snapshot",
+        type: .web
+    ) else {
+        printJSON(["ok": false, "error": "cannot open pack at \(folder.path)"])
+        exit(1)
+    }
+
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 1600, height: 1000),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.isReleasedWhenClosed = false
+    window.level = .floating
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    window.contentView = wallpaper.view
+    window.makeKeyAndOrderFront(nil)
+    application.activate(ignoringOtherApps: true)
+    wallpaper.play()
+
+    // WebKit only runs `requestAnimationFrame` for a window it considers
+    // visible, so the snapshot probe needs a real run loop, not a manual one.
+    wallpaper.onLoad = {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            let shoot = {
+                wallpaper.takeSnapshot(width: 1600) { image in
+                    guard let image,
+                          let tiff = image.tiffRepresentation,
+                          let bitmap = NSBitmapImageRep(data: tiff),
+                          let png = bitmap.representation(using: .png, properties: [:])
+                    else {
+                        printJSON(["ok": false, "error": "no snapshot produced"])
+                        exit(1)
+                    }
+                    do {
+                        try png.write(to: URL(fileURLWithPath: outputPath))
+                        printJSON(["ok": true, "path": outputPath, "bytes": png.count])
+                        exit(0)
+                    } catch {
+                        printJSON(["ok": false, "error": error.localizedDescription])
+                        exit(1)
+                    }
+                }
+            }
+            if let script {
+                // Let the scripted state settle for a moment before capture.
+                wallpaper.evaluateForTesting(script) { result in
+                    printJSON(["script": result as? String ?? "ok"])
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: shoot)
+                }
+            } else {
+                shoot()
+            }
+        }
+    }
+
+    withExtendedLifetime(wallpaper) {
+        application.run()
+    }
+    exit(1)
+}
+
+/// Prints the ambient values a wallpaper can react to, without any prompt.
+private func runEnvironmentProbe() -> Never {
+    let application = NSApplication.shared
+    application.setActivationPolicy(.accessory)
+
+    var printed = false
+    _ = EnvironmentMonitor.shared.addObserver { snapshot in
+        guard !printed else { return }
+        printed = true
+        printJSON([
+            "ok": true,
+            "pointer": [
+                "x": snapshot.pointerScreen.x,
+                "y": snapshot.pointerScreen.y,
+            ],
+            "audioPlaying": snapshot.isAudioPlaying,
+            "dayPhase": snapshot.dayPhase,
+            "dark": snapshot.isDark,
+            "reduceMotion": snapshot.reduceMotion,
+            "lowPowerMode": snapshot.lowPowerMode,
+        ])
+        exit(0)
+    }
+
+    let deadline = Date().addingTimeInterval(5)
+    while !printed && Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    }
+    exit(1)
+}
+
 // MARK: - Hotkey probe
 
 /// Proves Carbon registration works without changing the saved preference.
@@ -378,6 +565,29 @@ if let flagIndex = arguments.firstIndex(of: "--probe-update") {
 
 if let flagIndex = arguments.firstIndex(of: "--probe-bridge"), arguments.count > flagIndex + 1 {
     runBridgeProbe(folderPath: arguments[flagIndex + 1])
+}
+
+if let flagIndex = arguments.firstIndex(of: "--snapshot-wallpaper"),
+   arguments.count > flagIndex + 2 {
+    let script = arguments.count > flagIndex + 3 && !arguments[flagIndex + 3].hasPrefix("--")
+        ? arguments[flagIndex + 3]
+        : nil
+    runWallpaperSnapshot(
+        folderPath: arguments[flagIndex + 1],
+        outputPath: arguments[flagIndex + 2],
+        script: script
+    )
+}
+
+if arguments.contains("--probe-environment") {
+    runEnvironmentProbe()
+}
+
+if let flagIndex = arguments.firstIndex(of: "--probe-web-frames"), arguments.count > flagIndex + 1 {
+    runWebFrameProbe(
+        folderPath: arguments[flagIndex + 1],
+        useDesktopLevel: !arguments.contains("--floating")
+    )
 }
 
 if let flagIndex = arguments.firstIndex(of: "--probe-mpv"), arguments.count > flagIndex + 1 {

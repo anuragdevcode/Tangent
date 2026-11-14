@@ -1,0 +1,7 @@
+{
+  "light":   { "type": "dropdown", "text": "Light",      "value": 0, "items": ["Auto", "Day", "Dusk", "Night"] },
+  "density": { "type": "slider",   "text": "Dust",       "value": 1, "min": 0.2, "max": 1.6, "step": 0.05 },
+  "draft":   { "type": "slider",   "text": "Drift",      "value": 0.5, "min": 0, "max": 1, "step": 0.05 },
+  "width":   { "type": "slider",   "text": "Beam width", "value": 1, "min": 0.6, "max": 1.7, "step": 0.05 },
+  "grain":   { "type": "slider",   "text": "Film grain", "value": 0.28, "min": 0, "max": 1, "step": 0.05 }
+}

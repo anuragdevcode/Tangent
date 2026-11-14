@@ -16,6 +16,9 @@ assignments, playback rules and live controls.
 - **Screen Saver mode**: installs a native `Tangent.saver`, mirrors the live
   per-display layout, and can be switched off again from Settings, Automation or
   the menu bar.
+- **Three built-in wallpapers** that ship with the app and appear in the library
+  like any other pack: **Contour** (2.5D survey-map landscape), **Membrane**
+  (WebGL soap film) and **Dust** (a room crossed by one shaft of light).
 
 ## Requirements
 
@@ -143,6 +146,65 @@ Unsupported, with an explicit reason in the UI: `app`, `unity`, `unityaudio` and
 desktop), `bizhawk` (emulator integration is Windows-only) and `videostream`
 (remote/HLS playback is not wired up yet). Unknown types from a newer pack
 format are preserved and marked unsupported rather than crashing.
+
+## Built-in wallpapers
+
+Three packs ship inside the app, under `Contents/Resources/Wallpapers`. They are
+ordinary web packs, so the library lists them, **Wallpaper Properties…** edits
+their controls, and Screen Saver mode stages them like anything else.
+
+**Contour** draws a mountain range as a survey map. Each ridge is a clipped
+contour band with its own palette depth, a single contour on one ridge is inked in
+the season's accent colour, and the sky, sun, haze and crest lights follow the
+local time of day. The pointer tilts the ranges in parallax; a click sends rings
+through the foreground. Controls: **Light** (Auto, Day, Dusk, Night), **Season**,
+**Depth**, **Drifting motes** and **Film grain**.
+
+**Membrane** is a WebGL soap film. Two bubbles hang in a dark room lit by one
+warm window; the film computes thin-film interference per pixel, refracts and
+reflects the room, and dents where the pointer presses it. A click sends a real
+ring across the surface. Controls: **Light**, **Iridescence**, **Window light**,
+**Bend to pointer** and **Film grain**.
+
+**Dust** is a bare room and one diagonal shaft of light. The shaft is a soft cone
+with a bright core; dust is weighted into the light rather than scattered over
+the frame, drifts slowly along the beam and brightens as it crosses. The pointer
+pushes the air aside, and a click sends a ring that the motes catch as it passes.
+The hour sets the light: warm amber through the afternoon, ember at dusk, cold
+silver at night. Controls: **Light**, **Dust**, **Drift**, **Beam width** and
+**Film grain**.
+
+All three honour **Reduce Motion** (motion settles instead of flowing) and
+**Low Power Mode** (capped frame rate) and are written to run without a network
+connection.
+
+### Ambient environment
+
+Web packs opt in with `tangent.enableEnvironment()` and then receive:
+
+```js
+window.tangent.onEnvironment = function (state) {
+  state.pointer;      // { x, y } normalised, top-left origin
+  state.pointerInside;
+  state.audioPlaying; // presence of audio on the default output device
+  state.dayPhase;     // 0 at midnight, 0.5 at noon
+  state.dark;         // system appearance
+  state.reduceMotion;
+  state.lowPowerMode;
+  state.timestamp;
+};
+```
+
+Everything is read locally and without a permission prompt: the pointer comes
+from `NSEvent.mouseLocation`, audio presence from the default output device's
+`DeviceIsRunningSomewhere` flag, and the rest from the clock, appearance and
+power state. It is a presence signal, not a waveform, so packs can lean into
+music without pretending to beat-match. The feed is delivered only to local
+pages; remote `url` packs never receive it. One 30 Hz timer is shared by every
+client and stops when the last one closes the wallpaper.
+
+`tangent.setDayPhase(phase)` places a pack at an exact time of day and repaints
+at once, which is what `--snapshot-wallpaper` uses for its stills.
 
 ## Pack format
 
@@ -321,6 +383,16 @@ $BIN --hotkey-status
 # Prove control defaults reach a live page
 $BIN --probe-bridge Tests/Fixtures/library/landing-web
 
+# Render a web pack at an exact time of day (also how the built-in thumbnails
+# are made); an optional script runs after load and before the capture
+$BIN --snapshot-wallpaper Resources/Wallpapers/Contour /tmp/contour.png "tangent.setDayPhase(0.745)"
+
+# Count the frames a web pack renders in the real desktop-level host
+$BIN --probe-web-frames Resources/Wallpapers/Membrane
+
+# Print the pointer, day phase, audio, appearance and power state web packs see
+$BIN --probe-environment
+
 # Decode and render VP9/WebM/AV1 through libmpv; prints codec, size and frame count
 $BIN --probe-mpv Tests/Fixtures/media/vp9.webm
 
@@ -386,8 +458,9 @@ Sources/Tangent/
   VideoWallpaper.swift       AVFoundation backend (H.264/HEVC)
   MPVWallpaper.swift         libmpv + OpenGL backend (VP9/WebM/AV1)
   VideoRouting.swift         picks AVFoundation or libmpv per file
-  WebWallpaper.swift         WKWebView backend + property bridge
+  WebWallpaper.swift         WKWebView backend + property bridge + environment feed
   ImageWallpaper.swift       GIF / picture backend
+  Environment/EnvironmentMonitor.swift  pointer, day phase, audio presence, reduce motion, power
   WallpaperStore.swift       layout persistence (with v1 migration)
   Playback/PlaybackMonitor.swift  fullscreen / battery / lock rules
   Hotkeys/HotkeyManager.swift     Carbon global shortcuts, rebinding, dispatch
@@ -402,9 +475,10 @@ Sources/Tangent/
   UI/                        AppKit library (sidebar, gallery, inspector), menu bar
                              popover, Settings, About & Feedback, in-app Ko-fi
                              support, control panel, theme and shared components
-  Diagnostics/SelfTests.swift     339-check compatibility and service suite
+  Diagnostics/SelfTests.swift     360-check compatibility and service suite
 ScreenSaver/TangentScreenSaverView.swift  the .saver principal class
 Tests/Fixtures/              pack and media fixtures used by the tests
+Resources/Wallpapers/        built-in web packs (Contour, Membrane, Dust)
 Resources/Info.plist
 Resources/TangentSaver-Info.plist  .saver bundle metadata
 .github/ISSUE_TEMPLATE/      bug-report issue form and contact links
@@ -422,9 +496,9 @@ Built and observed on an M2 running macOS 27.0.1:
 | Third-party dylibs | none linked; `libmpv` is loaded at runtime with `dlopen` only when a VP9/WebM/AV1 file needs it |
 | Bundled library closure | 50 dylibs, 61 MB in `Contents/Frameworks`; every install name rewritten to `@rpath`, all references resolve inside the bundle |
 | Bundle signature | `codesign --verify --deep --strict` passes with ad-hoc signatures |
-| Compatibility suite (`--test`) | `PASS — 339 checks` |
+| Compatibility suite (`--test`) | `PASS — 360 checks` |
 | Next Wallpaper (`--probe-advance`) | through the real button/hotkey path: a pinned display advanced in place (`celestial-veil…` → `LiveWallpaper`) while the default stayed `logo-mark`; an unpinned display advanced the default (`logo-mark` → `celestial-veil…`); the run never wrote the layout |
-| Version | `0.6.1` (build `8`) |
+| Version | `0.7.0` (build `9`) |
 | Binary | `sha256 75ed6eca26a8382c83261f04a813f7cfc89c6912294b2bf4f11de39c9757894f`, arm64 |
 | Property bridge (`--probe-bridge`) | page receives `speed=1.5`, `mode=1`, `flip=true`, `tint="#112233"`, `image="present.jpg"`, `missingImage=null`; `button`/`label` omitted |
 | Wallpaper window layer | `-2147483622`, full screen, `alpha 1` |
@@ -437,7 +511,7 @@ Built and observed on an M2 running macOS 27.0.1:
 | Automation desktop icons (`--snapshot-library --library-section 6`) | the **Shortcuts** card shows Global Shortcuts and Hide Desktop Icons in the same row style with the Finder-restart explanation; the busy-state disabling is covered by the service tests |
 | About & Feedback surfaces (`--snapshot-settings --settings-pane 3`, `--snapshot-library --library-section 7`) | identity, version/build, live update card, help and community cards render together in Settings and the library; the standalone About window uses the same page |
 | Update/diagnostics suite (`--test`) | semver with prereleases, drafts, asset selection, HTTP 304/403/404/429/500, offline errors, a mocked `URLSession` request, 24-hour scheduling, diagnostic fields/fallbacks/Rosetta, privacy exclusions and issue-URL encoding |
-| GitHub endpoint (`curl`) | `releases/latest` resolves to `v0.6.1` and serves `Tangent-0.6.1-arm64.dmg`; the landing page's download CTAs use that exact asset URL |
+| GitHub endpoint (`curl`) | `releases/latest` resolves to `v0.7.0` and serves `Tangent-0.7.0-arm64.dmg`; the landing page's download CTAs use that exact asset URL |
 | Gallery selection (`--gallery-select 0`) | inspector shows the preview, type badge, title/author, details (type, size, version, location) and actions; **Set for This Screen** stays disabled for unplayable packs |
 | Inspector preview pill | keeps its `92×26` frame while the title flips **Preview** ↔ **Pause**, so the control never resizes mid-click |
 | Status capsules | keep their intrinsic width in the Settings playback card and the Automation page instead of stretching to fill the row |
@@ -466,6 +540,11 @@ Built and observed on an M2 running macOS 27.0.1:
 | Screen Saver toggle | enabling installs `~/Library/Screen Savers/Tangent.saver` and writes the layout; disabling removes it; a missing bundled saver fails without leaving the switch on |
 | Unsupported pack | exits `3` with the Windows-reparenting reason |
 | Display layout | default/pin/disable/reset, `UserDefaults` round-trip, v1 migration |
+| Built-in wallpapers (`--snapshot-library`) | the gallery lists **Contour**, **Membrane** and **Dust** from the app bundle with their generated thumbnails, author `Tangent`, and the cards render in the same 16:10 grid as user packs |
+| Contour stills (`--snapshot-wallpaper`) | day, dusk and night captures differ; each of the 8 ridges carries 12 clipped contour bands, one accent line and its own parallax depth |
+| Membrane stills (`--snapshot-wallpaper`) | the WebGL program compiles (no fallback), and day, dusk and night captures show the window refracting through the film with matching interference colours |
+| Dust stills (`--snapshot-wallpaper`) | day, dusk and night captures differ; each shows one full-bleed shaft with no row seams, and dusk and night read much darker overall than day |
+| Environment feed (`--probe-web-frames`) | the desktop-level host reports 110 frames in 2.2 s (~50 fps) with `pointer`, `pointerInside`, `dayPhase`, `dark`, `audioPlaying`, `reduceMotion` and `lowPowerMode` present in the page |
 
 ## Known limitations
 
@@ -478,9 +557,10 @@ Built and observed on an M2 running macOS 27.0.1:
 - **No spanning.** Displays are separate Spaces-backed screens; one wallpaper
   cannot stretch across two monitors. Per-display wallpapers are supported
   instead.
-- **No host audio feed.** Web wallpapers that draw their own animation work, but
-  system-audio-reactive packs expect an audio stream that is not wired up yet.
-  That needs ScreenCaptureKit audio (macOS 13+) or a CoreAudio process tap.
+- **Audio is presence, not a waveform.** The environment feed reports whether the
+  default output device is in use, so packs can lean into music but cannot
+  beat-match or read levels yet. That needs ScreenCaptureKit audio (macOS 13+)
+  or a CoreAudio process tap.
 - **No system-information feed** for packs that request hardware stats.
 - **Control values are per pack, not per display.** A pack shown on two displays
   shares one set of values.

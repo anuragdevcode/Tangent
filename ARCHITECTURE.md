@@ -58,8 +58,9 @@ crashing window manager.
 | `VideoRouting.swift` | container/codec inspection, backend choice, fallback |
 | `VideoWallpaper.swift` | AVFoundation `AVPlayerLayer` backend |
 | `MPVWallpaper.swift` | libmpv + OpenGL backend |
-| `WebWallpaper.swift` | `WKWebView` backend and property bridge |
+| `WebWallpaper.swift` | `WKWebView` backend, property bridge and opt-in environment feed |
 | `ImageWallpaper.swift` | GIF and still-image backend |
+| `Environment/EnvironmentMonitor.swift` | one shared 30 Hz source of pointer, day phase, audio presence, appearance, Reduce Motion and Low Power Mode |
 | `Packs/PackFormat.swift` | the only declaration of format filenames and listener names |
 | `Packs/PackInfo.swift` | metadata parsing, entry/thumbnail/preview resolution |
 | `Packs/PackProperties.swift` | eight control types, defaults, interaction values |
@@ -174,6 +175,56 @@ parser; controls are presented sorted by name for a stable UI.
 The modern name is preferred; the historical name is kept so existing packs keep
 working. The same call is used for live edits from the control panel, so there is
 no separate update path.
+
+### Ambient environment
+
+A web pack opts in with `tangent.enableEnvironment()`. The bootstrap object
+`window.tangent` is injected before the pack's own scripts and also carries
+`version`, `playing`, `onEnvironment`, `onPlaying` and `setDayPhase`.
+`WebWallpaper` registers one observer with `EnvironmentMonitor` and pushes the
+snapshot through the same script-message bridge; the page receives it on
+`tangent.onEnvironment` and can read the last value from `tangent.environment`.
+
+`EnvironmentMonitor` owns a single 30 Hz timer and a 2-second audio poll, starts
+them on the first observer and stops them on the last, so a static pack pays
+nothing. Values are derived without a permission prompt: pointer from
+`NSEvent.mouseLocation` converted into the view's own coordinates, day phase from
+the local clock, audio presence from the default output device's
+`DeviceIsRunningSomewhere` property (with a short hold so track changes do not
+flicker), `dark` from `effectiveAppearance`, and Reduce Motion / Low Power Mode
+from `NSWorkspace` and `ProcessInfo`.
+
+The bridge throttles identical states and is only enabled for local pages. A
+remote `url` pack never receives the feed, because that would leak the pointer
+and the user's listening state to a network origin.
+
+## Built-in wallpapers
+
+`Resources/Wallpapers` holds the first-party packs. `PackLibrary` treats
+`Bundle.main.resourceURL/Wallpapers` as an implicit root, so the packs appear in
+the library with the user's own, and `ScreenSaverStager` copies them into the
+saver snapshot like any other referenced pack.
+
+All three are plain web packs, with no privileged API beyond the bridge:
+
+- **Contour** builds its ridges from deterministic value noise and a ridged
+  fractal, clips one contour group per ridge against the next one's silhouette,
+  and repaints its palette as the day phase moves.
+- **Membrane** traces two spheres with a shallow, pointer-driven deformation and
+  shades a thin film with a three-wavelength interference term. It selects the
+  backdrop by refraction and reflection, so the window it hangs in front of shows
+  up on both surfaces, and it caps resolution when frames run long.
+- **Dust** draws a cone of light into a half-resolution buffer — two nested
+  gradient fills with a shared cross-section profile, faded along their length
+  with `destination-in` — then places seeded motes by distance along and across
+  that axis, so brightness follows the beam instead of the frame. The scene is
+  rendered at a fixed 1920×1200 and stretched by CSS: the composition is soft by
+  nature, its cost stays predictable, and a paused or throttled host never
+  catches the canvas at a stale size.
+
+`tangent.setDayPhase()` repaints a paused pack, which is what the thumbnail and
+still-frame probes use; the thumbnails in the repository were generated from the
+real packs with `--snapshot-wallpaper` and downscaled, never drawn separately.
 
 ## Persistence
 
@@ -331,18 +382,22 @@ runtime library and is exclusive — it is never combined with the bundled copy.
 
 ## Verification
 
-`--test` runs 321 assertions with no test framework: JSON parsing, metadata and
+`--test` runs 360 assertions with no test framework: JSON parsing, metadata and
 property parsing, entry resolution, library scanning, type support, bridge
 payloads, property copies, display layouts, gallery query/filter/cycling,
 shortcut validation/persistence, GitHub release/update policy, diagnostics
 privacy, the desktop-icon state machine, Screen Saver config/storage and
-install/remove behaviour, and the arm64-only build.
+install/remove behaviour, the environment monitor and its pointer geometry, and
+the arm64-only build.
 
 Runtime checks that cannot run in-process are exposed as CLI flags:
 
 | Flag | Purpose |
 |---|---|
 | `--probe-bridge <folder>` | loads a page and reports the property payload it received |
+| `--snapshot-wallpaper <folder> <out.png> [js]` | renders a web pack at 3200×2000, optionally after a script such as `tangent.setDayPhase(0.745)` |
+| `--probe-web-frames <folder>` | loads a web pack in the desktop-level host and reports frames, visibility and the environment state it received |
+| `--probe-environment` | prints the ambient snapshot: pointer, day phase, audio presence, appearance, Reduce Motion and Low Power Mode |
 | `--probe-mpv <file>` | decodes through libmpv and reports codec, size, frames, errors |
 | `--probe-kofi` | opens the real support window in a fresh session and reports title, login state and page text |
 | `--report-frames <seconds>` | counts frames rendered by the desktop-level window |
@@ -356,7 +411,8 @@ Runtime checks that cannot run in-process are exposed as CLI flags:
 1. Build libmpv/ffmpeg against the macOS 13 SDK to remove the 27.0 floor from
    bundled libraries.
 2. Remote/HLS `videostream` playback.
-3. Host audio feed for audio-reactive packs (ScreenCaptureKit or CoreAudio tap).
+3. Level or beat audio feed for audio-reactive packs (ScreenCaptureKit or a
+   CoreAudio tap); the environment feed so far reports presence only.
 4. Per-display property copies.
 5. Developer ID signing and notarization.
 6. Optional screen-saver configuration sheet and per-display saver overrides.

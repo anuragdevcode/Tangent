@@ -25,6 +25,7 @@ while IFS= read -r file; do SOURCES+=("$file"); done < <(find "$ROOT/Sources/Tan
 SAVER_SOURCES=(
 	"$ROOT/Sources/Tangent/DisplayLayout.swift"
 	"$ROOT/Sources/Tangent/Wallpaper.swift"
+	"$ROOT/Sources/Tangent/Environment/EnvironmentMonitor.swift"
 	"$ROOT/Sources/Tangent/VideoWallpaper.swift"
 	"$ROOT/Sources/Tangent/VideoRouting.swift"
 	"$ROOT/Sources/Tangent/ImageWallpaper.swift"
@@ -56,6 +57,7 @@ FRAMEWORKS=(
 	-framework IOKit
 	-framework OpenGL
 	-framework Carbon
+	-framework CoreAudio
 )
 
 SAVER_FRAMEWORKS=(
@@ -66,6 +68,7 @@ SAVER_FRAMEWORKS=(
 	-framework IOKit
 	-framework OpenGL
 	-framework ScreenSaver
+	-framework CoreAudio
 )
 
 compile() { # $1 = output path
@@ -112,6 +115,12 @@ cp -R "$SAVER" "$APP/Contents/Resources/Tangent.saver"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Resources/BrandMark.png" "$APP/Contents/Resources/BrandMark.png"
+
+# First-party wallpaper packs. They are scanned straight from the bundle, so a
+# user's library stays untouched and the saver can stage them like any pack.
+if [[ -d "$ROOT/Resources/Wallpapers" ]]; then
+	cp -R "$ROOT/Resources/Wallpapers" "$APP/Contents/Resources/Wallpapers"
+fi
 
 # Embed libmpv and its dylib closure so the app does not need Homebrew at
 # runtime. Set TANGENT_BUNDLE_LIBMPV=0 to keep the build lean while iterating.

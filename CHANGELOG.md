@@ -6,6 +6,41 @@ semantic versioning once it reaches 1.0.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-14
+
+### Added
+
+- **Built-in wallpapers**, shipped as ordinary web packs in the app bundle and
+  found by the library alongside your own. They are copied into the screen
+  saver's snapshot like any other web pack, so they work on the desktop and in
+  Screen Saver mode without installation.
+- **Contour** — a ridged landscape drawn as a survey map: contour bands clipped
+  to each ridge, one seasonal accent line, day, dusk and night palettes that
+  follow the local clock, pointer parallax and click ripples.
+- **Membrane** — a WebGL soap film: two iridescent bubbles against a lit room,
+  thin-film interference computed per pixel, a window the film both refracts and
+  reflects, a pointer dimple and a ring that crosses the surface on click.
+- **Dust** — a bare room crossed by one warm shaft of light. Dust is weighted
+  into the beam, drifts along it and brightens as it crosses; the pointer pushes
+  the air and a click sends a ring the motes catch. The hour moves the light from
+  amber afternoon through ember dusk to cold silver night.
+- **Ambient environment for web packs.** A pack can call
+  `tangent.enableEnvironment()` and receive `pointer`, `pointerInside`,
+  `audioPlaying`, `dayPhase`, `dark`, `reduceMotion`, `lowPowerMode` and
+  `timestamp` on `tangent.onEnvironment`. Everything is derived locally with no
+  permission prompt, and the feed is never sent to a remote URL.
+- `--snapshot-wallpaper <folder> <out.png> [js]`, `--probe-web-frames <folder>`
+  and `--probe-environment` for deterministic stills, frame counts and the
+  ambient snapshot.
+
+### Changed
+
+- Web packs can place themselves at an exact time of day with
+  `tangent.setDayPhase(phase)`, which also repaints a paused scene, so previews
+  and stills do not wait for a fade.
+- Built-in packs honour Reduce Motion and Low Power Mode; the environment feed
+  stops its timers when the last wallpaper that asked for it goes away.
+
 ## [0.6.1] — 2026-11-11
 
 ### Fixed

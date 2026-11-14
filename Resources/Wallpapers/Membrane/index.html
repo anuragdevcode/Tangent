@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Membrane</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #06080a;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #film, #grain, #vignette {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  #film { display: block; }
+  #grain {
+    pointer-events: none;
+    opacity: calc(var(--grain, 0.3) * 0.14);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+  }
+  #vignette {
+    pointer-events: none;
+    background: radial-gradient(ellipse 82% 78% at 46% 48%,
+      rgba(0, 0, 0, 0) 52%,
+      rgba(3, 5, 8, 0.22) 82%,
+      rgba(3, 5, 8, 0.46) 100%);
+  }
+</style>
+</head>
+<body>
+  <canvas id="film"></canvas>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('film');
+  var tangent = window.tangent = window.tangent || {};
+  tangent.version = tangent.version || 1;
+  tangent.environment = null;
+  tangent.playing = true;
+  tangent.onEnvironment = null;
+  tangent.onPlaying = null;
+
+  // ---------------------------------------------------------------- palettes
+
+  // Same architectural palette as the rest of the collection: ink, one warm
+  // light, and a cool fill. The film itself is never a rainbow; it picks a
+  // narrow slice of the spectrum and stays there.
+  var STOPS = [
+    { p: 0.000, void: '#05070a', sky: '#0d141b', key: '#a8c0dc', cool: '#4c6d84',
+      a: '#8fa9c4', b: '#6f8fae', c: '#b9d2e4', glow: 0.45 },
+    { p: 0.220, void: '#07070b', sky: '#151520', key: '#e9b58c', cool: '#4a5a70',
+      a: '#d9a081', b: '#9c7f9e', c: '#8fb0c2', glow: 0.55 },
+    { p: 0.300, void: '#080a0d', sky: '#1a2029', key: '#ffd7a3', cool: '#7e97a6',
+      a: '#f0c691', b: '#c79aa4', c: '#9ccbc4', glow: 0.70 },
+    { p: 0.500, void: '#080b0f', sky: '#1b232c', key: '#ffe0b2', cool: '#8ca6b8',
+      a: '#f3d19b', b: '#cea3a9', c: '#a4d2c9', glow: 0.75 },
+    { p: 0.660, void: '#08090d', sky: '#1c2029', key: '#ffcf92', cool: '#7f95a8',
+      a: '#eec089', b: '#c78f96', c: '#9ac4c0', glow: 0.72 },
+    { p: 0.740, void: '#07070a', sky: '#1d1820', key: '#ff9f6e', cool: '#6b6680',
+      a: '#e8a37c', b: '#a87f91', c: '#7fa8ae', glow: 0.78 },
+    { p: 0.820, void: '#05070b', sky: '#0f151d', key: '#9fb4d4', cool: '#455f76',
+      a: '#8ea8c4', b: '#7288a8', c: '#aec9dd', glow: 0.50 },
+    { p: 1.000, void: '#05070a', sky: '#0d141b', key: '#a8c0dc', cool: '#4c6d84',
+      a: '#8fa9c4', b: '#6f8fae', c: '#b9d2e4', glow: 0.45 }
+  ];
+
+  var COLOR_KEYS = ['void', 'sky', 'key', 'cool', 'a', 'b', 'c'];
+  var NUM_KEYS = ['glow'];
+
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function rgbToHex(rgb) {
+    function h(v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }
+    return '#' + h(rgb[0]) + h(rgb[1]) + h(rgb[2]);
+  }
+  function mixHex(a, b, t) {
+    var x = hexToRgb(a), y = hexToRgb(b);
+    return rgbToHex([
+      x[0] + (y[0] - x[0]) * t,
+      x[1] + (y[1] - x[1]) * t,
+      x[2] + (y[2] - x[2]) * t
+    ]);
+  }
+  function toVec(hex) {
+    var c = hexToRgb(hex);
+    return [c[0] / 255, c[1] / 255, c[2] / 255];
+  }
+
+  function sample(phase) {
+    var p = ((phase % 1) + 1) % 1;
+    var lo = STOPS[0], hi = STOPS[STOPS.length - 1];
+    for (var i = 0; i < STOPS.length - 1; i++) {
+      if (p >= STOPS[i].p && p <= STOPS[i + 1].p) { lo = STOPS[i]; hi = STOPS[i + 1]; break; }
+    }
+    var span = hi.p - lo.p || 1;
+    var t = (p - lo.p) / span;
+    t = t * t * (3 - 2 * t);
+    var out = { p: p };
+    for (var k = 0; k < COLOR_KEYS.length; k++) {
+      out[COLOR_KEYS[k]] = mixHex(lo[COLOR_KEYS[k]], hi[COLOR_KEYS[k]], t);
+    }
+    for (var n = 0; n < NUM_KEYS.length; n++) {
+      var key = NUM_KEYS[n];
+      out[key] = lo[key] + (hi[key] - lo[key]) * t;
+    }
+    return out;
+  }
+
+  // --------------------------------------------------------------- environment
+
+  var env = {
+    x: 0.5, y: 0.46, audio: false, day: 0.0, inside: true,
+    dark: false, reduce: false, lowPower: false, live: false
+  };
+
+  var settings = {
+    light: 0,
+    sheen: 0.55,
+    glow: 0.5,
+    bend: true,
+    grain: 0.3
+  };
+
+  var manualPhases = [null, 0.50, 0.745, 0.020];
+  var dayLock = null;
+
+  function applyProperty(name, value) {
+    if (name === 'light') { settings.light = Number(value) | 0; dayLock = null; }
+    else if (name === 'sheen') settings.sheen = Math.max(0, Math.min(1, Number(value)));
+    else if (name === 'glow') settings.glow = Math.max(0, Math.min(1, Number(value)));
+    else if (name === 'bend') settings.bend = !!value;
+    else if (name === 'grain') settings.grain = Math.max(0, Math.min(1, Number(value)));
+    else return;
+    document.documentElement.style.setProperty('--grain', settings.grain.toFixed(2));
+    refreshLightMode();
+    // An explicit control is an instruction, not a suggestion: jump to it and
+    // repaint at once so a paused or throttled scene still reflects it.
+    if (name === 'light') phase = targetPhase;
+    paintPalette();
+    drawFrame();
+  }
+
+  window.tangentPropertyListener = function (name, value) { applyProperty(name, value); };
+  window.livelyPropertyListener = window.tangentPropertyListener;
+
+  function refreshLightMode() {
+    if (dayLock !== null) {
+      targetPhase = dayLock;
+    } else if (settings.light === 0) {
+      targetPhase = env.live ? env.day : 0.72;
+    } else {
+      targetPhase = manualPhases[settings.light] || 0.5;
+    }
+  }
+
+  if (typeof tangent.enableEnvironment === 'function') {
+    tangent.enableEnvironment();
+  }
+  tangent.onEnvironment = function (state) {
+    if (!state) return;
+    env.live = true;
+    if (state.pointer) {
+      env.x = Math.max(0, Math.min(1, state.pointer.x));
+      env.y = Math.max(0, Math.min(1, state.pointer.y));
+    }
+    env.audio = !!state.audioPlaying;
+    env.day = Number(state.dayPhase) || 0;
+    env.dark = !!state.dark;
+    env.inside = state.pointerInside !== false;
+    env.reduce = !!state.reduceMotion;
+    env.lowPower = !!state.lowPowerMode;
+    refreshLightMode();
+  };
+
+  if (!env.live) {
+    var now = new Date();
+    env.day = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    env.reduce = true;
+  }
+
+  // ------------------------------------------------------------------- shader
+
+  var VERT = [
+    'attribute vec2 aPos;',
+    'void main() { gl_Position = vec4(aPos, 0.0, 1.0); }'
+  ].join('\n');
+
+  var FRAG = [
+    'precision highp float;',
+    '',
+    'uniform vec2 uRes;',
+    'uniform float uTime;',
+    'uniform vec2 uPointer;',
+    'uniform float uAudio;',
+    'uniform float uSheen;',
+    'uniform float uGlow;',
+    'uniform float uDent;',
+    'uniform vec3 uRipple;',
+    'uniform vec3 uVoid;',
+    'uniform vec3 uSky;',
+    'uniform vec3 uKey;',
+    'uniform vec3 uCool;',
+    'uniform vec3 uFilmA;',
+    'uniform vec3 uFilmB;',
+    'uniform vec3 uFilmC;',
+    '',
+    'const vec3 BIG = vec3(0.24, -0.03, 0.0);',
+    'const float BIG_R = 0.55;',
+    'const vec3 DOT = vec3(-0.68, -0.42, 0.34);',
+    'const float DOT_R = 0.088;',
+    'const vec3 CAMERA = vec3(0.0, 0.0, 2.55);',
+    '',
+    'float wave(vec3 p) {',
+    '  return sin(p.x * 3.6 + sin(p.y * 4.2 + uTime * 0.15))',
+    '       * sin(p.y * 3.1 + sin(p.z * 4.8 - uTime * 0.11))',
+    '       * sin(p.z * 3.9 + sin(p.x * 4.4 + uTime * 0.09));',
+    '}',
+    '',
+    'bool hitSphere(vec3 ro, vec3 rd, vec3 c, float r, out float t) {',
+    '  vec3 oc = ro - c;',
+    '  float b = dot(oc, rd);',
+    '  float h = b * b - (dot(oc, oc) - r * r);',
+    '  if (h < 0.0) return false;',
+    '  t = -b - sqrt(h);',
+    '  return t > 0.0;',
+    '}',
+    '',
+    'vec3 spherePoint(vec3 dir, vec3 c, float r) {',
+    '  float t;',
+    '  if (!hitSphere(CAMERA, dir, c, r, t)) t = -dot(CAMERA - c, dir);',
+    '  return CAMERA + dir * t;',
+    '}',
+    '',
+    'vec3 gRipplePoint;',
+    '',
+    '// 0..1 weight of the click ring at a point. Set up in main so the tracing',
+    '// loop never recomputes it.',
+    'float rippleRing(vec3 p) {',
+    '  if (uRipple.z >= 1.6) return 0.0;',
+    '  float front = length(p - gRipplePoint) - uRipple.z * 0.34;',
+    '  return exp(-pow(front / 0.090, 2.0)) * exp(-uRipple.z * 1.00);',
+    '}',
+    '',
+    '// The film hangs under its own weight: a touch heavier at the bottom, and',
+    '// the pointer presses a shallow dimple into it.',
+    'float bigSurface(vec3 p, vec3 dentPoint) {',
+    '  vec3 q = p - BIG;',
+    '  float ny = q.y / max(length(q), 1e-4);',
+    '  float sag = 0.030 * clamp(0.5 - 0.5 * ny, 0.0, 1.0);',
+    '  float r = BIG_R + sag;',
+    '  r += 0.010 * wave(q * 3.0 + vec3(0.0, 0.0, uTime * 0.10));',
+    '  if (uDent > 0.001) {',
+    '    vec3 d = p - dentPoint;',
+    '    r -= uDent * 0.055 * exp(-14.0 * dot(d, d));',
+    '  }',
+    '  // A click sends one ring out across the film, like a fingertip on water.',
+    '  r -= 0.028 * rippleRing(p);',
+    '  return length(q) - r;',
+    '}',
+    '',
+    'float dotSurface(vec3 p) {',
+    '  vec3 q = p - DOT;',
+    '  float r = DOT_R + 0.003 * wave(q * 8.0 + vec3(0.0, 0.0, uTime * 0.2));',
+    '  return length(q) - r;',
+    '}',
+    '',
+    'float sceneMap(vec3 p, vec3 dentPoint) {',
+    '  return min(bigSurface(p, dentPoint), dotSurface(p));',
+    '}',
+    '',
+    'vec3 sceneNormal(vec3 p, vec3 dentPoint) {',
+    '  vec2 e = vec2(0.0018, 0.0);',
+    '  float d = sceneMap(p, dentPoint);',
+    '  return normalize(vec3(',
+    '    sceneMap(p + e.xyy, dentPoint) - d,',
+    '    sceneMap(p + e.yxy, dentPoint) - d,',
+    '    sceneMap(p + e.yyx, dentPoint) - d',
+    '  ));',
+    '}',
+    '',
+    'float rectMask(vec2 p, vec2 lo, vec2 hi, float soft) {',
+    '  vec2 a = smoothstep(lo - soft, lo + soft, p);',
+    '  vec2 b = 1.0 - smoothstep(hi - soft, hi + soft, p);',
+    '  return a.x * a.y * b.x * b.y;',
+    '}',
+    '',
+    '// The room is deliberately quiet: near-black walls, one soft field of warm',
+    '// daylight to the right, a cool breath on the left. The film supplies the',
+    '// detail; the room only supplies the light.',
+    'vec3 backdrop(vec3 d) {',
+    '  vec3 c = mix(uVoid, uSky * 0.60, smoothstep(-0.95, 0.85, d.y));',
+    '',
+    '  float pane = rectMask(d.xy, vec2(0.10, -0.30), vec2(0.56, 0.36), 0.055);',
+    '  float grad = 0.50 + 0.50 * smoothstep(-0.30, 0.36, d.y);',
+    '  c += uKey * pane * grad * 1.30 * uGlow;',
+    '',
+    '  // A single soft mullion crosses the pane. The film bends it into a curve',
+    '  // of its own, which is what sells the transparency.',
+    '  float mull = 1.0 - smoothstep(0.0, 0.016, abs(d.x - 0.315));',
+    '  c -= uKey * mull * pane * grad * 0.55 * uGlow;',
+    '  float lip = 1.0 - smoothstep(0.010, 0.035, abs(d.x - 0.565));',
+    '  c += uKey * lip * grad * 0.22 * uGlow;',
+    '',
+    '  c += uKey * exp(-length(d.xy - vec2(0.28, 0.02)) * 2.2) * 0.10 * uGlow;',
+    '  c += uCool * exp(-length(d.xy - vec2(-0.66, 0.40)) * 2.4) * 0.14;',
+    '',
+    '  // The floor swallows the light again.',
+    '  float floor = smoothstep(-0.34, -0.90, d.y);',
+    '  c = mix(c, uVoid * 1.2, floor * 0.55);',
+    '  c += uKey * rectMask(d.xy, vec2(-0.20, -0.95), vec2(0.62, -0.38), 0.24)',
+    '     * smoothstep(-0.38, -0.85, d.y) * 0.10 * uGlow;',
+    '  return c;',
+    '}',
+    '',
+    '// Thin-film interference. Thickness in nanometres, view angle as the cosine',
+    '// of the refracted ray. Red, green and blue extinguish in turn, which is the',
+    '// whole trick behind a soap film’s colour.',
+    'vec3 thinFilm(float thickness, float cosT) {',
+    '  float opd = 2.0 * 1.33 * thickness * max(cosT, 0.05);',
+    '  vec3 lambda = vec3(660.0, 545.0, 460.0);',
+    '  vec3 phase = 6.2831853 * opd / lambda;',
+    '  return 0.5 + 0.5 * cos(phase);',
+    '}',
+    '',
+    'vec3 shade(vec3 pos, vec3 n, vec3 rd, float isBig) {',
+    '  float facing = max(dot(-rd, n), 0.0);',
+    '  float fres = 0.03 + 0.97 * pow(1.0 - facing, 4.5);',
+    '',
+    '  vec3 centre = isBig > 0.5 ? BIG : DOT;',
+    '  float radius = isBig > 0.5 ? BIG_R : DOT_R;',
+    '  float hN = clamp((pos.y - centre.y) / radius, -1.0, 1.0);',
+    '',
+    '  // The film is thin at the crown and thickens toward the heavy hem, with',
+    '  // the slow swirl of draining water running through it.',
+    '  float thick = 285.0 + 300.0 * (0.5 - 0.5 * hN)',
+    '    + (isBig > 0.5 ? 85.0 * rippleRing(pos) : 0.0)',
+    '    + 34.0 * sin(pos.x * 5.2 + pos.z * 4.4 + uTime * 0.13)',
+    '    + 18.0 * sin(pos.y * 8.6 - uTime * 0.09);',
+    '  thick += uAudio * 90.0;',
+    '',
+    '  float cosT = sqrt(max(0.0, 1.0 - (1.0 - facing * facing) / 1.7689));',
+    '  vec3 film = thinFilm(thick, cosT);',
+    '  // Lift the black minima a little: a film catches light everywhere, and',
+    '  // pure interference minima would draw ink lines across the surface.',
+    '  film = mix(film, vec3(0.72), 0.26);',
+    '  film *= mix(vec3(1.0), (uFilmA + uFilmB + uFilmC) * 0.6667 * 1.8, 0.14);',
+    '',
+    '  // A film is a shell, not a solid sphere: two refractions almost cancel,',
+    '  // leaving a faint lens shift. Refracting as if it were solid glass would',
+    '  // fold the room into caustics the film could never produce.',
+    '  vec3 rr = normalize(rd + n * 0.06);',
+    '  vec3 behind = backdrop(rr);',
+    '  vec3 mirrored = backdrop(reflect(rd, n));',
+    '',
+    '  // Transmitted room, reflected room, and the colour of the film itself.',
+    '  vec3 col = behind * (0.94 - 0.40 * fres);',
+    '  col += mirrored * fres * 0.90;',
+    '  col += film * (0.10 + 0.90 * fres) * uSheen * 0.78;',
+    '',
+    '  // One hard highlight from the window, one cool kiss opposite it.',
+    '  vec3 keyDir = normalize(vec3(-0.55, 0.42, 0.72));',
+    '  vec3 hv = normalize(keyDir - rd);',
+    '  col += uKey * pow(max(dot(n, hv), 0.0), 900.0) * 1.60;',
+    '  col += uCool * pow(max(dot(n, normalize(vec3(0.60, -0.50, 0.60) - rd)), 0.0), 80.0) * 0.35;',
+    '',
+    '  // A bright meniscus just inside the silhouette, then a dark contact line.',
+    '  col += film * smoothstep(0.55, 0.97, fres) * 0.65 * uSheen;',
+    '  col *= 1.0 - 0.50 * smoothstep(0.965, 1.0, fres);',
+    '  return col;',
+    '}',
+    '',
+    'void main() {',
+    '  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;',
+    '  vec3 rd = normalize(vec3(uv, -1.55));',
+    '  vec3 ro = CAMERA;',
+    '',
+    '  vec2 puv = (uPointer - 0.5) * vec2(uRes.x / uRes.y, -1.0);',
+    '  vec3 pdir = normalize(vec3(puv, -1.55));',
+    '  vec3 dentPoint = spherePoint(pdir, BIG, BIG_R);',
+    '',
+    '  vec2 ruv = (uRipple.xy - 0.5) * vec2(uRes.x / uRes.y, -1.0);',
+    '  gRipplePoint = spherePoint(normalize(vec3(ruv, -1.55)), BIG, BIG_R);',
+    '',
+    '  vec3 col = backdrop(rd);',
+    '  float tBig, tDot;',
+    '  bool bigHit = hitSphere(ro, rd, BIG, BIG_R + 0.055, tBig);',
+    '  bool dotHit = hitSphere(ro, rd, DOT, DOT_R + 0.02, tDot);',
+    '',
+    '  if (bigHit || dotHit) {',
+    '    bool useBig = bigHit && (!dotHit || tBig < tDot);',
+    '    float t = useBig ? tBig : tDot;',
+    '    // A few Newton steps put the sample on the deformed surface.',
+    '    for (int i = 0; i < 3; i++) {',
+    '      t += sceneMap(ro + rd * t, dentPoint);',
+    '    }',
+    '    vec3 pos = ro + rd * t;',
+    '    vec3 n = sceneNormal(pos, dentPoint);',
+    '    col = shade(pos, n, rd, useBig ? 1.0 : 0.0);',
+    '  }',
+    '',
+    '  // Tone, then a whisper of noise so the gradients never band.',
+    '  col = 1.0 - exp(-col * 1.18);',
+    '  float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);',
+    '  col += (dither - 0.5) * 0.006;',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  var gl = null;
+  var program = null;
+  var uniforms = {};
+  var fallback = false;
+
+  function compile(type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      var log = gl.getShaderInfoLog(shader);
+      gl.deleteShader(shader);
+      throw new Error(log || 'shader compile failed');
+    }
+    return shader;
+  }
+
+  function initGL() {
+    try {
+      gl = canvas.getContext('webgl', {
+        antialias: false,
+        alpha: false,
+        depth: false,
+        stencil: false,
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: false
+      });
+      if (!gl) throw new Error('no webgl');
+
+      program = gl.createProgram();
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(program) || 'link failed');
+      }
+      gl.useProgram(program);
+
+      var buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(program, 'aPos');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+      ['uRes', 'uTime', 'uPointer', 'uAudio', 'uSheen', 'uGlow', 'uDent', 'uRipple',
+       'uVoid', 'uSky', 'uKey', 'uCool', 'uFilmA', 'uFilmB', 'uFilmC'].forEach(function (name) {
+        uniforms[name] = gl.getUniformLocation(program, name);
+      });
+      return true;
+    } catch (error) {
+      fallback = true;
+      if (window.console && console.warn) console.warn('Membrane: ' + error.message);
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------- rendering
+
+  var phase = 0.72;
+  var targetPhase = 0.72;
+  var palette = sample(phase);
+  var lastPaint = '';
+  var pointer = { x: 0.5, y: 0.46, dx: 0.5, dy: 0.46 };
+  var dent = 0;
+  var rippleAge = 99;
+  var rippleX = 0.5;
+  var rippleY = 0.46;
+  var audio = 0;
+  var playing = true;
+  var clock = 0;
+  var lastTime = 0;
+  var frameHandle = null;
+  var scale = 1;
+
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var quality = env.lowPower ? 0.7 : 1;
+    var next = Math.min(dpr, 1.6) * scale * quality;
+    var w = Math.max(2, Math.round(window.innerWidth * next));
+    var h = Math.max(2, Math.round(window.innerHeight * next));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    if (gl) gl.viewport(0, 0, w, h);
+  }
+  window.addEventListener('resize', resize, { passive: true });
+
+  window.addEventListener('pointermove', function (event) {
+    pointer.x = event.clientX / Math.max(1, window.innerWidth);
+    pointer.y = event.clientY / Math.max(1, window.innerHeight);
+  }, { passive: true });
+
+  // One ring per click, starting where the fingertip lands.
+  function pulseAt(x, y) {
+    rippleX = Math.max(0, Math.min(1, x));
+    rippleY = Math.max(0, Math.min(1, y));
+    rippleAge = 0;
+  }
+  tangent.pulse = pulseAt;
+
+  window.addEventListener('pointerdown', function (event) {
+    pulseAt(event.clientX / Math.max(1, window.innerWidth),
+            event.clientY / Math.max(1, window.innerHeight));
+  }, { passive: true });
+
+  function paintPalette() {
+    var next = sample(phase);
+    var stamp = next.void + next.sky + next.key + next.cool + next.a + next.b + next.c + next.glow.toFixed(2);
+    if (stamp === lastPaint) return;
+    lastPaint = stamp;
+    palette = next;
+  }
+
+  function setColors() {
+    gl.uniform3fv(uniforms.uVoid, toVec(palette.void));
+    gl.uniform3fv(uniforms.uSky, toVec(palette.sky));
+    gl.uniform3fv(uniforms.uKey, toVec(palette.key));
+    gl.uniform3fv(uniforms.uCool, toVec(palette.cool));
+    gl.uniform3fv(uniforms.uFilmA, toVec(palette.a));
+    gl.uniform3fv(uniforms.uFilmB, toVec(palette.b));
+    gl.uniform3fv(uniforms.uFilmC, toVec(palette.c));
+  }
+
+  // One place that pushes every uniform, so a property change or a still can
+  // repaint without waiting for the animation loop.
+  function drawFrame() {
+    if (!gl || !program) return;
+    setColors();
+    gl.uniform2f(uniforms.uRes, canvas.width, canvas.height);
+    gl.uniform1f(uniforms.uTime, clock);
+    gl.uniform2f(uniforms.uPointer, pointer.dx, pointer.dy);
+    gl.uniform1f(uniforms.uAudio, audio);
+    gl.uniform1f(uniforms.uSheen, settings.sheen);
+    gl.uniform1f(uniforms.uGlow, settings.glow * (0.7 + palette.glow * 0.6));
+    gl.uniform1f(uniforms.uDent, dent);
+    gl.uniform3f(uniforms.uRipple, rippleX, rippleY, rippleAge);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  var frames = 0;
+  var slowFrames = 0;
+  var fastFrames = 0;
+
+  function step(now) {
+    frameHandle = null;
+    if (!playing) return;
+    window.__tangentFrames = (window.__tangentFrames || 0) + 1;
+
+    if (!lastTime) lastTime = now;
+    var elapsed = (now - lastTime) / 1000;
+    var dt = Math.min(0.06, Math.max(0.001, elapsed));
+    lastTime = now;
+    // Reduced motion: the film holds its pose instead of flowing.
+    if (!env.reduce) clock += dt;
+
+    // Local hour drifts in, so a manual light change is a fade rather than a cut.
+    var delta = targetPhase - phase;
+    if (delta > 0.5) delta -= 1;
+    if (delta < -0.5) delta += 1;
+    if (Math.abs(delta) > 0.0002) {
+      phase += delta * Math.min(1, dt * 5.0);
+      phase = ((phase % 1) + 1) % 1;
+    }
+
+    var wantX = env.live ? env.x : pointer.x;
+    var wantY = env.live ? env.y : pointer.y;
+    if (env.live && !env.inside) { wantX = 0.5; wantY = 0.46; }
+    var ease = Math.min(1, dt * 3.2);
+    pointer.dx += (wantX - pointer.dx) * ease;
+    pointer.dy += (wantY - pointer.dy) * ease;
+
+    var wantDent = settings.bend && !env.reduce && (!env.live || env.inside) ? 1 : 0;
+    dent += (wantDent - dent) * Math.min(1, dt * 2.4);
+    audio += ((env.audio ? 1 : 0) - audio) * Math.min(1, dt * 1.8);
+    if (rippleAge < 1.6) rippleAge += dt;
+
+    paintPalette();
+    drawFrame();
+
+    // Keep the frame rate honest: if the machine is struggling, render fewer
+    // pixels instead of dropping frames.
+    if (dt > 0.030) { slowFrames++; fastFrames = 0; } else { fastFrames++; slowFrames = 0; }
+    if (slowFrames > 20 && scale > 0.55) { scale = Math.max(0.55, scale - 0.1); slowFrames = 0; resize(); }
+    if (fastFrames > 120 && scale < 1) { scale = Math.min(1, scale + 0.1); fastFrames = 0; resize(); }
+
+    frames++;
+    frameHandle = window.requestAnimationFrame(step);
+  }
+
+  function start() {
+    if (frameHandle !== null) return;
+    lastTime = 0;
+    frameHandle = window.requestAnimationFrame(step);
+  }
+
+  function stop() {
+    playing = false;
+    if (frameHandle !== null) {
+      window.cancelAnimationFrame(frameHandle);
+      frameHandle = null;
+    }
+  }
+
+  tangent.onPlaying = function (value) {
+    playing = !!value;
+    if (playing) start(); else stop();
+  };
+
+  tangent.setDayPhase = function (value) {
+    var p = Number(value);
+    if (!isFinite(p)) return;
+    dayLock = ((p % 1) + 1) % 1;
+    phase = targetPhase = dayLock;
+    paintPalette();
+    drawFrame();
+  };
+
+  function boot() {
+    refreshLightMode();
+    phase = targetPhase;
+    paintPalette();
+    if (initGL()) {
+      resize();
+      drawFrame();
+      start();
+    } else {
+      // Without WebGL the pack still needs to be a wallpaper, not a black hole.
+      canvas.style.display = 'none';
+      document.body.style.background =
+        'radial-gradient(ellipse 70% 60% at 46% 46%, #1b232c 0%, #0a0e13 55%, #05070a 100%)';
+    }
+  }
+
+  // The first frame must exist even if the host throttles the animation loop.
+  boot();
+})();
+</script>
+</body>
+</html>

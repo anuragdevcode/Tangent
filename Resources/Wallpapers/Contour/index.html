@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contour</title>
+<style>
+  :root {
+    --sky0: #dde7ec;
+    --sky1: #f6efe1;
+    --haze: #eddcc2;
+    --ink: #2c2a26;
+    --accent: #c0603a;
+    --grain: 0.35;
+    --light: 0.55;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0c1016;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #scene, #motes, #grain, #light, #vignette {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  #sky {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(178deg, var(--sky0) 0%, var(--sky1) 58%, var(--haze) 100%);
+  }
+  #scene { display: block; }
+  #motes { pointer-events: none; }
+  #light {
+    pointer-events: none;
+    width: 170vmax;
+    height: 170vmax;
+    left: 50%;
+    top: 50%;
+    inset: auto;
+    margin-left: -85vmax;
+    margin-top: -85vmax;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(255, 248, 232, 0.22) 0%,
+      rgba(255, 244, 220, 0.10) 26%,
+      rgba(255, 240, 208, 0.03) 46%,
+      rgba(255, 240, 208, 0) 60%);
+    mix-blend-mode: screen;
+    opacity: calc(var(--light) * 0.46);
+    will-change: transform;
+  }
+  #vignette {
+    pointer-events: none;
+    background: radial-gradient(ellipse 78% 72% at 50% 44%,
+      rgba(0, 0, 0, 0) 46%,
+      rgba(9, 11, 15, 0.10) 76%,
+      rgba(9, 11, 15, 0.30) 100%);
+  }
+  #grain {
+    pointer-events: none;
+    opacity: calc(var(--grain) * 0.16);
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='170' height='170'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='170' height='170' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    background-size: 170px 170px;
+  }
+  #birds { will-change: transform; }
+  .ridge { will-change: transform; }
+</style>
+</head>
+<body>
+  <div id="sky"></div>
+  <svg id="scene" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#f6ddb2" stop-opacity="0.40"/>
+        <stop offset="32%" stop-color="#f6ddb2" stop-opacity="0.14"/>
+        <stop offset="62%" stop-color="#f6ddb2" stop-opacity="0.04"/>
+        <stop offset="100%" stop-color="#f6ddb2" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="disc" cx="46%" cy="42%" r="58%">
+        <stop offset="0%" stop-color="#fffdf4"/>
+        <stop offset="62%" stop-color="#fff3d6"/>
+        <stop offset="100%" stop-color="#f8e3b8"/>
+      </radialGradient>
+    </defs>
+    <g id="sunWrap">
+      <circle id="haloCircle" cx="1166" cy="296" r="400" fill="url(#halo)"/>
+      <circle id="sunDisc" cx="1166" cy="296" r="72" fill="url(#disc)"/>
+    </g>
+    <g id="ridges"></g>
+    <g id="birds" fill="none" stroke-linecap="round">
+      <path d="M330 246 q10 -8 20 0 q10 -8 20 0"/>
+      <path d="M398 206 q8 -6 16 0 q8 -6 16 0"/>
+      <path d="M458 258 q6 -5 12 0 q6 -5 12 0"/>
+    </g>
+  </svg>
+  <canvas id="motes"></canvas>
+  <div id="light"></div>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var W = 1600, H = 1000;
+  var scene = document.getElementById('scene');
+  var ridgeHost = document.getElementById('ridges');
+  var sunWrap = document.getElementById('sunWrap');
+  var birds = document.getElementById('birds');
+  var sunDisc = document.getElementById('sunDisc');
+  var haloCircle = document.getElementById('haloCircle');
+  var haloStop = document.getElementById('halo').querySelectorAll('stop');
+  var discStops = document.getElementById('disc').querySelectorAll('stop');
+  var light = document.getElementById('light');
+  var canvas = document.getElementById('motes');
+  var ctx = canvas.getContext('2d');
+
+  var tangent = window.tangent = window.tangent || {};
+  tangent.version = tangent.version || 1;
+  tangent.environment = null;
+  tangent.playing = true;
+  tangent.onEnvironment = null;
+  tangent.onPlaying = null;
+
+  // ---------------------------------------------------------------- palettes
+
+  // Stops are read through the local day. Values are tuned for a matte print:
+  // no neon, no glow, one warm accent.
+  var STOPS = [
+    { p: 0.000, sky0: '#0a0e14', sky1: '#141b24', haze: '#1f2a35',
+      far: '#2a3743', near: '#080d12', crest: '#5a6c80', sun: '#e9e3d3',
+      halo: '#9fb4c6', accent: '#c98a5b', mote: '#d8ccb4', disc: 0.60, sunA: 0.85, light: 0.35 },
+    { p: 0.220, sky0: '#121724', sky1: '#3a3446', haze: '#6e5a63',
+      far: '#5a5666', near: '#15151d', crest: '#a98c88', sun: '#f0c79e',
+      halo: '#b98a78', accent: '#c1744c', mote: '#d9bca8', disc: 0.78, sunA: 0.75, light: 0.40 },
+    { p: 0.300, sky0: '#b9c8d6', sky1: '#f0dfc8', haze: '#e7caa6',
+      far: '#93a3a4', near: '#20282a', crest: '#f6ead4', sun: '#ffeccd',
+      halo: '#f3c795', accent: '#c0603a', mote: '#f4e2c8', disc: 0.86, sunA: 0.90, light: 0.50 },
+    { p: 0.500, sky0: '#cbdfe9', sky1: '#f2ecdf', haze: '#e9d8ba',
+      far: '#8ea4a8', near: '#111a1c', crest: '#fbf6e8', sun: '#fff2d5',
+      halo: '#f4d7a4', accent: '#bf5a33', mote: '#f4e8cf', disc: 0.74, sunA: 0.85, light: 0.56 },
+    { p: 0.660, sky0: '#c8d6dc', sky1: '#f0dfc6', haze: '#e8c9a0',
+      far: '#93a099', near: '#232a26', crest: '#f9f0da', sun: '#ffe7ba',
+      halo: '#eec48c', accent: '#bc5b36', mote: '#f5dfbe', disc: 0.84, sunA: 0.90, light: 0.52 },
+    { p: 0.740, sky0: '#44384a', sky1: '#c97e5f', haze: '#de9e77',
+      far: '#6e5555', near: '#161219', crest: '#efbb94', sun: '#ffd09c',
+      halo: '#e59a6e', accent: '#d2673f', mote: '#f2c79f', disc: 1.00, sunA: 0.95, light: 0.48 },
+    { p: 0.820, sky0: '#151a25', sky1: '#292a38', haze: '#3a3542',
+      far: '#39404c', near: '#0d1219', crest: '#6e7486', sun: '#e7d9c6',
+      halo: '#8e93a2', accent: '#b9795a', mote: '#cdbfb0', disc: 0.66, sunA: 0.80, light: 0.36 },
+    { p: 1.000, sky0: '#0a0e14', sky1: '#141b24', haze: '#1f2a35',
+      far: '#2a3743', near: '#080d12', crest: '#5a6c80', sun: '#e9e3d3',
+      halo: '#9fb4c6', accent: '#c98a5b', mote: '#d8ccb4', disc: 0.60, sunA: 0.85, light: 0.35 }
+  ];
+
+  var SEASONS = [
+    { accent: '#b65a4b', mote: '#f0d6c4' },
+    { accent: '#c0603a', mote: '#f7e7ce' },
+    { accent: '#ae4e2c', mote: '#edc79b' },
+    { accent: '#6d8291', mote: '#e4e8ea' }
+  ];
+
+  var COLOR_KEYS = ['sky0', 'sky1', 'haze', 'far', 'near', 'crest', 'sun', 'halo', 'accent', 'mote'];
+
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function rgbToHex(rgb) {
+    function h(v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }
+    return '#' + h(rgb[0]) + h(rgb[1]) + h(rgb[2]);
+  }
+  function mixHex(a, b, t) {
+    var x = hexToRgb(a), y = hexToRgb(b);
+    return rgbToHex([
+      x[0] + (y[0] - x[0]) * t,
+      x[1] + (y[1] - x[1]) * t,
+      x[2] + (y[2] - x[2]) * t
+    ]);
+  }
+  function mixNumber(a, b, t) { return a + (b - a) * t; }
+
+  function sample(phase) {
+    var p = ((phase % 1) + 1) % 1;
+    var lo = STOPS[0], hi = STOPS[STOPS.length - 1];
+    for (var i = 0; i < STOPS.length - 1; i++) {
+      if (p >= STOPS[i].p && p <= STOPS[i + 1].p) { lo = STOPS[i]; hi = STOPS[i + 1]; break; }
+    }
+    var span = hi.p - lo.p || 1;
+    var t = (p - lo.p) / span;
+    t = t * t * (3 - 2 * t); // smoothstep, so dawn/dusk do not snap
+    var out = { p: p };
+    for (var k = 0; k < COLOR_KEYS.length; k++) {
+      var key = COLOR_KEYS[k];
+      out[key] = mixHex(lo[key], hi[key], t);
+    }
+    out.disc = mixNumber(lo.disc, hi.disc, t);
+    out.sunA = mixNumber(lo.sunA, hi.sunA, t);
+    out.light = mixNumber(lo.light, hi.light, t);
+    return out;
+  }
+
+  // --------------------------------------------------------------- environment
+
+  var env = {
+    x: 0.5, y: 0.42, audio: false, day: 0.0,
+    dark: false, reduce: false, lowPower: false, live: false
+  };
+
+  var settings = {
+    light: 0,      // Auto / Day / Dusk / Night
+    season: 1,     // Spring / Summer / Autumn / Winter
+    depth: 0.6,
+    motes: true,
+    grain: 0.35
+  };
+
+  var manualPhases = [null, 0.50, 0.740, 0.020];
+  var dayLock = null;
+
+  function applyProperty(name, value) {
+    if (name === 'light') { settings.light = Number(value) | 0; dayLock = null; }
+    else if (name === 'season') settings.season = Number(value) | 0;
+    else if (name === 'depth') settings.depth = Math.max(0, Math.min(1, Number(value)));
+    else if (name === 'motes') settings.motes = !!value;
+    else if (name === 'grain') settings.grain = Math.max(0, Math.min(1, Number(value)));
+    else return;
+    document.documentElement.style.setProperty('--grain', settings.grain.toFixed(2));
+    refreshLightMode();
+    // An explicit control is an instruction, not a suggestion: jump to it and
+    // repaint at once so a paused or throttled scene still reflects it.
+    if (name === 'light') phase = targetPhase;
+    paintPalette(performance.now());
+  }
+
+  window.tangentPropertyListener = function (name, value) { applyProperty(name, value); };
+  window.livelyPropertyListener = window.tangentPropertyListener;
+
+  function refreshLightMode() {
+    if (dayLock !== null) {
+      targetPhase = dayLock;
+    } else if (settings.light === 0) {
+      // Auto: the real local hour, or a calm evening if the host gave us nothing.
+      targetPhase = env.live ? env.day : (0.72);
+    } else {
+      targetPhase = manualPhases[settings.light] || 0.5;
+    }
+  }
+
+  if (typeof tangent.enableEnvironment === 'function') {
+    tangent.enableEnvironment();
+  }
+  tangent.onEnvironment = function (state) {
+    if (!state) return;
+    env.live = true;
+    if (state.pointer) {
+      env.x = Math.max(0, Math.min(1, state.pointer.x));
+      env.y = Math.max(0, Math.min(1, state.pointer.y));
+    }
+    env.audio = !!state.audioPlaying;
+    env.day = Number(state.dayPhase) || 0;
+    env.dark = !!state.dark;
+    env.reduce = !!state.reduceMotion;
+    env.lowPower = !!state.lowPowerMode;
+    refreshLightMode();
+  };
+
+  if (!env.live) {
+    // Opening the file outside Tangent still gives a living scene.
+    var now = new Date();
+    env.day = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    env.reduce = true;
+  }
+
+  // ------------------------------------------------------------------- ridges
+
+  var LAYERS = 8;
+  var HORIZON = 452;
+  var SUN_R = 72;
+  var HALO_R = 400;
+  var ridgeLayers = [];
+
+  // Deterministic value noise. A ridged fractal on top of it gives sharp
+  // summits and long shoulders, which is what makes the skyline read as terrain
+  // instead of a wave.
+  function hash(n) {
+    var s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  function noise1(x, seed) {
+    var i = Math.floor(x);
+    var f = x - i;
+    var u = f * f * (3 - 2 * f);
+    var a = hash(i + seed * 53.13);
+    var b = hash(i + 1 + seed * 53.13);
+    return (a + (b - a) * u) * 2 - 1;
+  }
+
+  function fbm(x, seed) {
+    var sum = 0, amp = 0.58, freq = 1;
+    for (var o = 0; o < 4; o++) {
+      sum += noise1(x * freq, seed + o * 7.7) * amp;
+      freq *= 2.03;
+      amp *= 0.47;
+    }
+    return sum;
+  }
+
+  function massAt(nx, center, width) {
+    var d = (nx - center) / width;
+    return Math.exp(-d * d);
+  }
+
+  // Height in roughly 0..1.2. Far layers get many small summits, near layers a
+  // few broad ones: apparent scale grows toward the viewer, which is what
+  // separates the layers without any perspective math.
+  function ridgeHeight(nx, i, t) {
+    var freq = 6.6 - 3.8 * t;
+    var n = fbm(nx * freq + i * 0.41, 1.7 + i * 4.3);
+    var ridge = Math.pow(Math.max(0, 1 - Math.abs(n)), 1.2);
+
+    // The far half of the range shares one massif, so its terraces stack into a
+    // single mountain. Nearer layers break away into their own foothills.
+    var ridgeLine = i < 4;
+    var c1 = ridgeLine ? 0.30 + 0.015 * i : 0.14 + 0.56 * hash(i * 3.7);
+    var c2 = ridgeLine ? 0.58 + 0.02 * i : 0.55 + 0.38 * hash(i * 5.1 + 2.4);
+    var m1 = massAt(nx, c1, ridgeLine ? 0.22 : 0.15 + 0.05 * hash(i * 1.9));
+    var m2 = massAt(nx, c2, 0.13 + 0.05 * hash(i * 2.3));
+    var mass = Math.max(m1, m2 * 0.72, 0.38);
+    return 0.08 + 1.10 * ridge * mass;
+  }
+
+  function ridgePath(i, base, amp, t) {
+    var pts = [];
+    for (var x = -80; x <= W + 80; x += 6) {
+      pts.push([x, base - amp * ridgeHeight(x / W, i, t)]);
+    }
+    var d = 'M ' + pts[0][0] + ' ' + pts[0][1].toFixed(1);
+    for (var p = 1; p < pts.length; p++) {
+      d += ' L ' + pts[p][0] + ' ' + pts[p][1].toFixed(1);
+    }
+    d += ' L ' + (W + 80) + ' ' + (H + 80) + ' L -80 ' + (H + 80) + ' Z';
+    return { pts: pts, d: d };
+  }
+
+  function crestPath(pts) {
+    var d = 'M ' + pts[0][0] + ' ' + pts[0][1].toFixed(1);
+    for (var i = 1; i < pts.length; i++) {
+      d += ' L ' + pts[i][0] + ' ' + pts[i][1].toFixed(1);
+    }
+    return d;
+  }
+
+  (function buildRidges() {
+    var defs = scene.querySelector('defs');
+    var geometries = [];
+    for (var i = 0; i < LAYERS; i++) {
+      var t = i / (LAYERS - 1);
+      var base = HORIZON + 560 * Math.pow(t, 1.25);
+      var amp = 172 - 55 * t;
+      geometries.push(ridgePath(i, base, amp, t));
+    }
+
+    for (var j = 0; j < LAYERS; j++) {
+      var tj = j / (LAYERS - 1);
+      var geometry = geometries[j];
+      var crest = crestPath(geometry.pts);
+
+      // The visible slice of a layer is its own fill minus the fill in front of
+      // it; contour lines are clipped to that slice so they never cross a
+      // neighbouring ridge.
+      var band = geometry.d;
+      if (j + 1 < LAYERS) band += ' ' + geometries[j + 1].d;
+
+      var clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+      clip.setAttribute('id', 'contour-band-' + j);
+      var clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      clipPath.setAttribute('d', band);
+      clipPath.setAttribute('clip-rule', 'evenodd');
+      clip.appendChild(clipPath);
+      defs.appendChild(clip);
+
+      var group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('class', 'ridge');
+
+      var fill = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      fill.setAttribute('d', geometry.d);
+
+      var strataHost = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      strataHost.setAttribute('clip-path', 'url(#contour-band-' + j + ')');
+
+      var spacing = 18;
+      var strata = [];
+      for (var s = 1; s <= 12; s++) {
+        var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        line.setAttribute('d', crest);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke-width', '0.9');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('transform', 'translate(0 ' + (s * spacing) + ')');
+        strataHost.appendChild(line);
+        strata.push(line);
+      }
+
+      var outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      outline.setAttribute('d', crest);
+      outline.setAttribute('fill', 'none');
+      outline.setAttribute('stroke-width', '1.15');
+      outline.setAttribute('stroke-linecap', 'round');
+
+      group.appendChild(fill);
+      group.appendChild(strataHost);
+      group.appendChild(outline);
+      ridgeHost.appendChild(group);
+
+      ridgeLayers.push({
+        group: group, fill: fill, crest: outline, strata: strata,
+        depth: 0.20 + tj * 0.80, index: tj
+      });
+    }
+  })();
+
+  // ------------------------------------------------------------------ palette
+
+  var phase = 0.72;
+  var targetPhase = 0.72;
+  var palette = sample(phase);
+  var lastPaint = '';
+  var lastLightStrength = -1;
+
+  function seasonal(p) {
+    var season = SEASONS[settings.season] || SEASONS[1];
+    var out = {};
+    for (var key in p) out[key] = p[key];
+    out.accent = mixHex(p.accent, season.accent, 0.55);
+    out.mote = mixHex(p.mote, season.mote, 0.35);
+    return out;
+  }
+
+  function paintPalette(now) {
+    var next = seasonal(sample(phase));
+    var stamp = next.sky0 + next.sky1 + next.haze + next.far + next.near +
+      next.crest + next.sun + next.halo + next.accent + next.mote +
+      next.disc.toFixed(2) + next.sunA.toFixed(2);
+    if (stamp === lastPaint) return;
+    lastPaint = stamp;
+    palette = next;
+
+    document.documentElement.style.setProperty('--sky0', next.sky0);
+    document.documentElement.style.setProperty('--sky1', next.sky1);
+    document.documentElement.style.setProperty('--haze', next.haze);
+    document.documentElement.style.setProperty('--accent', next.accent);
+    document.documentElement.style.setProperty('--ink', next.near);
+    haloStop[0].setAttribute('stop-color', next.halo);
+    haloStop[1].setAttribute('stop-color', next.halo);
+    discStops[0].setAttribute('stop-color', mixHex(next.sun, '#ffffff', 0.34));
+    discStops[1].setAttribute('stop-color', next.sun);
+    discStops[2].setAttribute('stop-color', mixHex(next.sun, next.halo, 0.38));
+
+    for (var i = 0; i < ridgeLayers.length; i++) {
+      var t = i / (ridgeLayers.length - 1);
+      var eased = Math.pow(t, 1.32);
+      var color = mixHex(next.far, next.near, eased);
+      var layer = ridgeLayers[i];
+      layer.fill.setAttribute('fill', color);
+      layer.crest.setAttribute('stroke', mixHex(next.crest, color, 0.42));
+      layer.crest.setAttribute('opacity', (0.52 - t * 0.22).toFixed(2));
+      for (var s = 0; s < layer.strata.length; s++) {
+        var k = s + 1;
+        // One contour is inked in the season's warm accent, the way a trail is
+        // marked on a survey map. Never more than one.
+        if (i === 3 && s === 2) {
+          layer.strata[s].setAttribute('stroke', next.accent);
+          layer.strata[s].setAttribute('opacity', '0.36');
+          layer.strata[s].setAttribute('stroke-width', '1.2');
+          continue;
+        }
+        layer.strata[s].setAttribute('stroke', mixHex(next.crest, color, 0.52 + k * 0.012));
+        layer.strata[s].setAttribute('opacity',
+          Math.max(0.02, 0.20 - t * 0.07 - k * 0.011).toFixed(3));
+      }
+    }
+    birds.setAttribute('stroke', mixHex(next.near, next.sky1, 0.36));
+    birds.setAttribute('stroke-width', '1.2');
+    birds.setAttribute('opacity', '0.30');
+    sunDisc.setAttribute('r', (SUN_R * next.disc).toFixed(1));
+    haloCircle.setAttribute('r', (HALO_R * (0.85 + next.disc * 0.3)).toFixed(1));
+  }
+
+  // -------------------------------------------------------------------- input
+
+  var pointer = { tx: 0.5, ty: 0.42, x: 0.5, y: 0.42, vx: 0, vy: 0 };
+  var pressed = false;
+  var ripples = [];
+
+  function updatePointer(x, y) {
+    pointer.tx = x;
+    pointer.ty = y;
+  }
+
+  window.addEventListener('pointermove', function (event) {
+    updatePointer(event.clientX / Math.max(1, window.innerWidth),
+                 event.clientY / Math.max(1, window.innerHeight));
+  }, { passive: true });
+
+  window.addEventListener('pointerdown', function (event) {
+    pressed = true;
+    var x = event.clientX, y = event.clientY;
+    ripples.push({ x: x, y: y, r: 6, a: 0.42 });
+    if (ripples.length > 5) ripples.shift();
+    // A click stirs the air rather than changing the scene.
+    for (var i = 0; i < 10; i++) {
+      spawnMote(
+        x / Math.max(1, window.innerWidth),
+        1 - y / Math.max(1, window.innerHeight),
+        0.35
+      );
+    }
+    updatePointer(x / Math.max(1, window.innerWidth),
+                 y / Math.max(1, window.innerHeight));
+  });
+
+  window.addEventListener('pointerup', function () { pressed = false; });
+  window.addEventListener('pointercancel', function () { pressed = false; });
+
+  // -------------------------------------------------------------------- motes
+
+  var particles = [];
+  var MAX_MOTES = 120;
+
+  function spawnMote(x, y, boost) {
+    if (particles.length >= MAX_MOTES) particles.shift();
+    particles.push({
+      x: x !== undefined ? x : Math.random(),
+      y: y !== undefined ? y : Math.random() * 0.55,
+      depth: 0.25 + Math.random() * 0.75,
+      r: 0.55 + Math.random() * 1.5,
+      speed: 0.003 + Math.random() * 0.012,
+      sway: 0.4 + Math.random() * 1.4,
+      phase: Math.random() * Math.PI * 2,
+      wobble: 0.6 + Math.random() * 1.8,
+      life: 0,
+      boost: boost || 0
+    });
+  }
+
+  // --------------------------------------------------------------------- loop
+
+  var playing = true;
+  var calm = env.reduce;
+  var audio = 0;
+  var lastTime = 0;
+  var clock = 0;
+  var frameHandle = null;
+  var dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(window.innerWidth * dpr);
+    canvas.height = Math.round(window.innerHeight * dpr);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  function sizeWanted() {
+    if (!settings.motes) return 0;
+    return env.audio ? 92 : 34;
+  }
+
+  function step(now) {
+    frameHandle = null;
+    if (!playing) return;
+    window.__tangentFrames = (window.__tangentFrames || 0) + 1;
+    if (!lastTime) lastTime = now;
+    var elapsed = (now - lastTime) / 1000;
+    // Low Power Mode: aim for ~30 fps, but keep real time so motion speed holds.
+    if (env.lowPower && elapsed < 0.033) {
+      frameHandle = window.requestAnimationFrame(step);
+      return;
+    }
+    var dt = Math.min(0.05, Math.max(0.001, elapsed));
+    lastTime = now;
+    clock += dt;
+    calm = env.reduce;
+
+    // Day phase drifts toward its target so a manual light change is a fade,
+    // not a cut.
+    var delta = targetPhase - phase;
+    if (delta > 0.5) delta -= 1;
+    if (delta < -0.5) delta += 1;
+    if (Math.abs(delta) > 0.0002) {
+      phase += delta * Math.min(1, dt * 5.5);
+      phase = ((phase % 1) + 1) % 1;
+    }
+
+    audio += ((env.audio ? 1 : 0) - audio) * Math.min(1, dt * 1.6);
+
+    if (!calm) {
+      var targetX = env.live ? env.x : pointer.tx;
+      var targetY = env.live ? env.y : pointer.ty;
+      // Critically damped spring: no bounce, no rubber-band feel.
+      var stiffness = 42, damping = 12.8;
+      var ax = (targetX - pointer.x) * stiffness - pointer.vx * damping;
+      var ay = (targetY - pointer.y) * stiffness - pointer.vy * damping;
+      pointer.vx += ax * dt;
+      pointer.vy += ay * dt;
+      pointer.x += pointer.vx * dt;
+      pointer.y += pointer.vy * dt;
+    } else {
+      pointer.x += (0.5 - pointer.x) * Math.min(1, dt * 2);
+      pointer.y += (0.42 - pointer.y) * Math.min(1, dt * 2);
+    }
+    pointer.tx = env.live ? env.x : pointer.tx;
+    pointer.ty = env.live ? env.y : pointer.ty;
+
+    paintPalette(now);
+
+    var strength = calm ? 0 : settings.depth;
+    var dx = (pointer.x - 0.5);
+    var dy = (pointer.y - 0.5);
+
+    for (var i = 0; i < ridgeLayers.length; i++) {
+      var layer = ridgeLayers[i];
+      var px = -dx * 30 * strength * layer.depth;
+      var py = -dy * 15 * strength * layer.depth;
+      layer.group.style.transform = 'translate3d(' + px.toFixed(2) + 'px,' + py.toFixed(2) + 'px,0)';
+    }
+
+    var sunScale = 1 + audio * 0.035 + Math.sin(clock * 0.45) * 0.006;
+    sunWrap.style.transform = 'translate3d(' +
+      (-dx * 12 * strength).toFixed(2) + 'px,' +
+      (-dy * 7 * strength).toFixed(2) + 'px,0)';
+    sunDisc.setAttribute('r', (SUN_R * palette.disc * sunScale).toFixed(1));
+    haloCircle.setAttribute('r', (HALO_R * (0.85 + palette.disc * 0.3) * sunScale).toFixed(1));
+    birds.style.transform = 'translate3d(' +
+      (-dx * 10 * strength).toFixed(2) + 'px,' +
+      (-dy * 6 * strength).toFixed(2) + 'px,0)';
+
+    var lightStrength = palette.light + audio * 0.12;
+    if (Math.abs(lightStrength - lastLightStrength) > 0.004) {
+      lastLightStrength = lightStrength;
+      document.documentElement.style.setProperty('--light', lightStrength.toFixed(2));
+    }
+    var lx = (calm ? 0.5 : pointer.x) - 0.5;
+    var ly = (calm ? 0.42 : pointer.y) - 0.5;
+    light.style.transform = 'translate3d(' + (lx * 26).toFixed(2) + 'vmax,' +
+      (ly * 20).toFixed(2) + 'vmax,0)';
+
+    drawMotes(dt, now);
+    frameHandle = window.requestAnimationFrame(step);
+  }
+
+  function drawMotes(dt, now) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!settings.motes) {
+      if (particles.length) particles.length = 0;
+      return;
+    }
+
+    var wanted = sizeWanted();
+    if (particles.length < wanted && Math.random() < 0.35) spawnMote();
+
+    var cw = canvas.width, ch = canvas.height;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var w = window.innerWidth, h = window.innerHeight;
+    var moteColor = hexToRgb(palette.mote);
+
+    if (calm) {
+      // A calm frame still shows a few fixed specks, like dust on paper.
+      var fixed = settings.motes ? 18 : 0;
+      for (var f = 0; f < fixed; f++) {
+        var seedX = ((f * 137.5) % 100) / 100;
+        var seedY = ((f * 61.8) % 100) / 100 * 0.8;
+        ctx.beginPath();
+        ctx.arc(seedX * w, seedY * h, 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + moteColor.join(',') + ',0.18)';
+        ctx.fill();
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      return;
+    }
+
+    var motion = 0.55 + audio * 1.25;
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.life += dt;
+      p.y -= p.speed * dt * motion / (0.4 + p.depth);
+      p.x += Math.sin(now * 0.00022 * p.sway + p.phase) * 0.00035 * dt * 60 * p.depth;
+      p.x += pointer.vx * 0.00035 * p.depth;
+      if (p.y < -0.06) {
+        if (i >= wanted) { particles.splice(i, 1); continue; }
+        p.y = 1.04;
+        p.x = Math.random();
+        p.depth = 0.25 + Math.random() * 0.75;
+      }
+      if (p.x < -0.05) p.x = 1.05;
+      if (p.x > 1.05) p.x = -0.05;
+
+      var alpha = (0.10 + p.depth * 0.30) * (0.55 + audio * 0.45);
+      var radius = p.r * (0.7 + p.depth * 0.8);
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + moteColor.join(',') + ',' + alpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    // Click ripples exist only in the live preview / saver; the desktop window
+    // is deliberately click-through, so this never captures a desktop click.
+    for (var r = ripples.length - 1; r >= 0; r--) {
+      var ring = ripples[r];
+      ring.r += dt * 260;
+      ring.a -= dt * 0.55;
+      if (ring.a <= 0) { ripples.splice(r, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(' + moteColor.join(',') + ',' + ring.a.toFixed(3) + ')';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  function start() {
+    if (frameHandle !== null) return;
+    lastTime = 0;
+    frameHandle = window.requestAnimationFrame(step);
+  }
+
+  function stop() {
+    playing = false;
+    if (frameHandle !== null) {
+      window.cancelAnimationFrame(frameHandle);
+      frameHandle = null;
+    }
+  }
+
+  tangent.onPlaying = function (value) {
+    playing = !!value;
+    if (playing) start(); else stop();
+  };
+
+  // Places the scene at an exact moment of the day and holds it there, so a
+  // still-frame tool can capture any palette without waiting for a fade.
+  tangent.setDayPhase = function (value) {
+    var p = Number(value);
+    if (!isFinite(p)) return;
+    dayLock = ((p % 1) + 1) % 1;
+    phase = targetPhase = dayLock;
+    paintPalette(performance.now());
+  };
+
+  function boot() {
+    calm = env.reduce;
+    refreshLightMode();
+    phase = targetPhase;
+    paintPalette(performance.now());
+    for (var i = 0; i < 34; i++) spawnMote();
+    // One drawn frame up front: if the host throttles the animation loop (a
+    // locked display, a paused saver), the scene is still complete.
+    drawMotes(0.016, performance.now());
+    start();
+  }
+
+  // The host pushes playing state right after load; if it never does, the
+  // scene simply runs.
+  boot();
+})();
+</script>
+</body>
+</html>

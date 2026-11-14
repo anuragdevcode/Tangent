@@ -1,0 +1,11 @@
+{
+  "Title": "Contour",
+  "Type": "web",
+  "FileName": "index.html",
+  "Thumbnail": "thumb.png",
+  "Author": "Tangent",
+  "Desc": "Layered ridgelines that lean toward the pointer, follow the hour, and stir when sound is playing. Paper, ink and one warm accent.",
+  "Tags": ["original", "interactive", "landscape", "2.5d"],
+  "Version": 1,
+  "IsAbsolutePath": false
+}

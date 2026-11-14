@@ -15,10 +15,16 @@ import Foundation
 final class ScreenSaverStager {
     private let storage: ScreenSaverStorage
     private let fileManager: FileManager
+    private let propertyStore: PropertyStore
 
-    init(storage: ScreenSaverStorage, fileManager: FileManager = .default) {
+    init(
+        storage: ScreenSaverStorage,
+        fileManager: FileManager = .default,
+        propertyStore: PropertyStore = .shared
+    ) {
         self.storage = storage
         self.fileManager = fileManager
+        self.propertyStore = propertyStore
     }
 
     private struct Staged {
@@ -133,16 +139,39 @@ final class ScreenSaverStager {
             String(entry.path.dropFirst(root.path.count + 1))
         )
         guard !fileManager.fileExists(atPath: stagedEntry.path) else {
+            // Controls change more often than the pack folder, so refresh the
+            // customised copy even when the pack itself is already staged.
+            stageCustomProperties(from: root, into: destination)
             return Staged(entry: stagedEntry, root: destination)
         }
         do {
             try fileManager.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
             try? fileManager.removeItem(at: destination)
             try fileManager.copyItem(at: root, to: destination)
+            stageCustomProperties(from: root, into: destination)
             return Staged(entry: stagedEntry, root: destination)
         } catch {
             return nil
         }
+    }
+
+    /// Copies the user's edited control values into the staged pack.
+    ///
+    /// `PropertyStore` keys customisations by the original pack path, but the
+    /// saver only sees the staged root. Writing the edited file into the copy
+    /// means the saver resolves the same values without needing the app's
+    /// storage layout.
+    private func stageCustomProperties(from root: URL, into destination: URL) {
+        let source = propertyStore.copyURL(forRoot: root)
+        guard fileManager.fileExists(atPath: source.path) else { return }
+        let target = destination.appendingPathComponent(PackFormat.propertiesFile)
+        if let staged = try? Data(contentsOf: source),
+           let existing = try? Data(contentsOf: target),
+           staged == existing {
+            return
+        }
+        try? fileManager.removeItem(at: target)
+        try? fileManager.copyItem(at: source, to: target)
     }
 
     /// Web packs load relative assets, so a single file is not enough. Copy a
